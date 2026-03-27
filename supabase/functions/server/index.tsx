@@ -25,7 +25,7 @@ app.use(
   }),
 );
 
-app.use("/make-server-2c83666d/api/*", async (c, next) => {
+app.use("/server/api/*", async (c, next) => {
   try {
     const auth = await requireUser(c.req.header("Authorization"));
     c.set("supabase", auth.client);
@@ -41,11 +41,11 @@ app.use("/make-server-2c83666d/api/*", async (c, next) => {
 });
 
 // Health check endpoint
-app.get("/make-server-2c83666d/health", (c) => {
+app.get("/server/health", (c) => {
   return c.json({ status: "ok", service: "soleyvolt-backend" });
 });
 
-app.get("/make-server-2c83666d/api/me", async (c) => {
+app.get("/server/api/me", async (c) => {
   const supabase = c.get("supabase");
   const user = c.get("user");
 
@@ -89,7 +89,7 @@ app.get("/make-server-2c83666d/api/me", async (c) => {
   });
 });
 
-app.get("/make-server-2c83666d/api/profile", async (c) => {
+app.get("/server/api/profile", async (c) => {
   const supabase = c.get("supabase");
   const user = c.get("user");
   const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -101,7 +101,7 @@ app.get("/make-server-2c83666d/api/profile", async (c) => {
   return c.json(data);
 });
 
-app.patch("/make-server-2c83666d/api/profile", async (c) => {
+app.patch("/server/api/profile", async (c) => {
   const supabase = c.get("supabase");
   const user = c.get("user");
   const body = await c.req.json().catch(() => null);
@@ -131,7 +131,7 @@ app.patch("/make-server-2c83666d/api/profile", async (c) => {
   return c.json(data);
 });
 
-app.get("/make-server-2c83666d/api/settings", async (c) => {
+app.get("/server/api/settings", async (c) => {
   const supabase = c.get("supabase");
   const user = c.get("user");
   const { data, error } = await supabase
@@ -147,7 +147,7 @@ app.get("/make-server-2c83666d/api/settings", async (c) => {
   return c.json(data);
 });
 
-app.patch("/make-server-2c83666d/api/settings", async (c) => {
+app.patch("/server/api/settings", async (c) => {
   const supabase = c.get("supabase");
   const user = c.get("user");
   const body = await c.req.json().catch(() => null);
@@ -180,7 +180,7 @@ app.patch("/make-server-2c83666d/api/settings", async (c) => {
   return c.json(data);
 });
 
-app.get("/make-server-2c83666d/api/wallet", async (c) => {
+app.get("/server/api/wallet", async (c) => {
   const supabase = c.get("supabase");
   const user = c.get("user");
   const limit = Number(c.req.query("limit") ?? "20");
@@ -208,7 +208,7 @@ app.get("/make-server-2c83666d/api/wallet", async (c) => {
   });
 });
 
-app.get("/make-server-2c83666d/api/users/search", async (c) => {
+app.get("/server/api/users/search", async (c) => {
   const user = c.get("user");
   const admin = createAdminClient();
   const query = (c.req.query("q") ?? "").trim();
@@ -231,7 +231,7 @@ app.get("/make-server-2c83666d/api/users/search", async (c) => {
   return c.json(data ?? []);
 });
 
-app.post("/make-server-2c83666d/api/transfer", async (c) => {
+app.post("/server/api/transfer", async (c) => {
   const supabase = c.get("supabase");
   const body = await c.req.json().catch(() => null);
 
@@ -252,7 +252,7 @@ app.post("/make-server-2c83666d/api/transfer", async (c) => {
   return c.json({ transaction: data });
 });
 
-app.post("/make-server-2c83666d/api/energy", async (c) => {
+app.post("/server/api/energy", async (c) => {
   const supabase = c.get("supabase");
   const body = await c.req.json().catch(() => null);
 
@@ -278,7 +278,7 @@ app.post("/make-server-2c83666d/api/energy", async (c) => {
   return c.json({ reading: data });
 });
 
-app.get("/make-server-2c83666d/api/admin/overview", async (c) => {
+app.get("/server/api/admin/overview", async (c) => {
   const admin = createAdminClient();
   const user = c.get("user");
 
@@ -288,8 +288,11 @@ app.get("/make-server-2c83666d/api/admin/overview", async (c) => {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profileError || profile?.role !== "admin") {
-    return c.json({ error: "Admin access required." }, 403);
+  if (
+    profileError ||
+    (profile?.role !== "admin" && profile?.role !== "superadmin")
+  ) {
+    return c.json({ error: "Staff access required." }, 403);
   }
 
   const [overviewResult, usersResult, transactionsResult, alertsResult] = await Promise.all([
@@ -326,7 +329,289 @@ app.get("/make-server-2c83666d/api/admin/overview", async (c) => {
   });
 });
 
-app.post("/make-server-2c83666d/api/admin/create-user", async (c) => {
+app.get("/server/api/admin/energy-pipeline", async (c) => {
+  const admin = createAdminClient();
+  const user = c.get("user");
+
+  const { data: requesterProfile, error: requesterProfileError } = await admin
+    .from("profiles")
+    .select("role, status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (
+    requesterProfileError ||
+    (requesterProfile?.role !== "admin" && requesterProfile?.role !== "superadmin") ||
+    requesterProfile?.status !== "active"
+  ) {
+    return c.json({ error: "Active staff access required." }, 403);
+  }
+
+  const [importsResult, mappingsResult, profilesResult] = await Promise.all([
+    admin
+      .from("energy_readings_import")
+      .select("*")
+      .order("dataset_user_code", { ascending: true })
+      .order("billing_cycle", { ascending: true })
+      .limit(120),
+    admin
+      .from("dataset_user_mappings")
+      .select("*")
+      .order("dataset_user_code", { ascending: true }),
+    admin
+      .from("profiles")
+      .select("id, full_name, email, role, user_type, status")
+      .eq("status", "active")
+      .order("full_name", { ascending: true })
+      .limit(100),
+  ]);
+
+  const firstError = importsResult.error ?? mappingsResult.error ?? profilesResult.error;
+
+  if (firstError) {
+    return c.json({ error: firstError.message }, 400);
+  }
+
+  const importRows = importsResult.data ?? [];
+  const linkedProfileIds = [...new Set(importRows.map((row) => row.linked_user_id).filter((value): value is string => Boolean(value)))];
+
+  let linkedProfilesById = new Map<string, { full_name: string | null; email: string | null }>();
+  let latestRun: {
+    id: string;
+    trigger_source: string;
+    status: "running" | "completed" | "completed_with_errors" | "failed" | "skipped";
+    calculation_version: string;
+    rows_considered: number;
+    processed_count: number;
+    failed_count: number;
+    promoted_count: number;
+    statuses_filter: string[];
+    promote: boolean;
+    dry_run: boolean;
+    anchor_date: string | null;
+    started_at: string;
+    completed_at: string | null;
+    error_summary: string | null;
+  } | null = null;
+
+  if (linkedProfileIds.length > 0) {
+    const { data: linkedProfiles, error: linkedProfilesError } = await admin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", linkedProfileIds);
+
+    if (linkedProfilesError) {
+      return c.json({ error: linkedProfilesError.message }, 400);
+    }
+
+    linkedProfilesById = new Map(
+      (linkedProfiles ?? []).map((profile) => [
+        profile.id,
+        {
+          full_name: profile.full_name ?? null,
+          email: profile.email ?? null,
+        },
+      ]),
+    );
+  }
+
+  const latestRunResult = await admin
+    .from("energy_pipeline_runs")
+    .select(
+      "id, trigger_source, status, calculation_version, rows_considered, processed_count, failed_count, promoted_count, statuses_filter, promote, dry_run, anchor_date, started_at, completed_at, error_summary",
+    )
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!latestRunResult.error) {
+    latestRun = latestRunResult.data;
+  }
+
+  return c.json({
+    imports: importRows.map((row) => {
+      const linkedProfile = row.linked_user_id ? linkedProfilesById.get(row.linked_user_id) : null;
+
+      return {
+        ...row,
+        linked_user_name: linkedProfile?.full_name ?? null,
+        linked_user_email: linkedProfile?.email ?? null,
+      };
+    }),
+    mappings: mappingsResult.data ?? [],
+    profiles: profilesResult.data ?? [],
+    latestRun,
+  });
+});
+
+app.post("/server/api/admin/energy-pipeline/mappings/:datasetUserCode", async (c) => {
+  const admin = createAdminClient();
+  const user = c.get("user");
+  const datasetUserCode = c.req.param("datasetUserCode");
+  const body = await c.req.json().catch(() => null);
+
+  if (!datasetUserCode) {
+    return c.json({ error: "Dataset user code is required." }, 400);
+  }
+
+  if (!body || typeof body.linkedUserId !== "string" || !body.linkedUserId.trim()) {
+    return c.json({ error: "A linked user id is required." }, 400);
+  }
+
+  const { data: requesterProfile, error: requesterProfileError } = await admin
+    .from("profiles")
+    .select("role, status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (
+    requesterProfileError ||
+    (requesterProfile?.role !== "admin" && requesterProfile?.role !== "superadmin") ||
+    requesterProfile?.status !== "active"
+  ) {
+    return c.json({ error: "Active staff access required." }, 403);
+  }
+
+  const { data, error } = await admin.rpc("apply_dataset_user_mapping", {
+    dataset_code: datasetUserCode,
+    profile_id: body.linkedUserId,
+    dataset_type: typeof body.datasetUserType === "string" ? body.datasetUserType : null,
+    source_file: typeof body.sourceFileName === "string" ? body.sourceFileName : null,
+    mapping_notes: typeof body.notes === "string" ? body.notes : null,
+  });
+
+  if (error) {
+    return c.json({ error: error.message }, 400);
+  }
+
+  return c.json(data);
+});
+
+app.post("/server/api/admin/users", async (c) => {
+  const admin = createAdminClient();
+  const user = c.get("user");
+  const body = await c.req.json().catch(() => null);
+
+  if (
+    !body ||
+    typeof body.email !== "string" ||
+    typeof body.password !== "string"
+  ) {
+    return c.json({ error: "Email and password are required." }, 400);
+  }
+
+  const email = body.email.trim().toLowerCase();
+  const password = body.password.trim();
+  const fullName =
+    typeof body.full_name === "string" && body.full_name.trim().length > 0
+      ? body.full_name.trim()
+      : "SoleyVolt User";
+  const language =
+    body.language === "fr" || body.language === "cr" ? body.language : "en";
+  const userType =
+    body.user_type === "consumer" || body.user_type === "producer" || body.user_type === "prosumer"
+      ? body.user_type
+      : "prosumer";
+  const status =
+    body.status === "inactive" || body.status === "suspended" ? body.status : "active";
+
+  if (!email) {
+    return c.json({ error: "A valid email is required." }, 400);
+  }
+
+  if (password.length < 8) {
+    return c.json({ error: "Password must be at least 8 characters long." }, 400);
+  }
+
+  const { data: requesterProfile, error: requesterProfileError } = await admin
+    .from("profiles")
+    .select("role, status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (
+    requesterProfileError ||
+    (requesterProfile?.role !== "admin" && requesterProfile?.role !== "superadmin") ||
+    requesterProfile?.status !== "active"
+  ) {
+    return c.json({ error: "Active staff access required." }, 403);
+  }
+
+  const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    app_metadata: {
+      role: "user",
+      user_type: userType,
+      status,
+      language,
+      created_by: user.id,
+    },
+    user_metadata: {
+      full_name: fullName,
+      user_type: userType,
+      language,
+    },
+  });
+
+  if (createUserError || !createdUser.user) {
+    return c.json({ error: createUserError?.message ?? "Unable to create user account." }, 400);
+  }
+
+  const { error: notificationError } = await admin.from("notifications").insert({
+    user_id: user.id,
+    notification_type: "warning",
+    title: "User account created",
+    message: `User ${email} (${userType}) was created by ${user.email ?? user.id}. Require a password change on first login.`,
+  });
+
+  if (notificationError) {
+    return c.json({ error: notificationError.message }, 400);
+  }
+
+  return c.json({
+    user: {
+      id: createdUser.user.id,
+      email: createdUser.user.email,
+      role: "user",
+      status,
+    },
+  });
+});
+
+app.get("/server/api/super-admin/admins", async (c) => {
+  const admin = createAdminClient();
+  const user = c.get("user");
+
+  const { data: requesterProfile, error: requesterProfileError } = await admin
+    .from("profiles")
+    .select("role, status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (
+    requesterProfileError ||
+    requesterProfile?.role !== "superadmin" ||
+    requesterProfile?.status !== "active"
+  ) {
+    return c.json({ error: "Active super admin access required." }, 403);
+  }
+
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, email, full_name, role, user_type, status, language, created_by")
+    .in("role", ["admin", "superadmin"])
+    .order("full_name", { ascending: true });
+
+  if (error) {
+    return c.json({ error: error.message }, 400);
+  }
+
+  return c.json(data ?? []);
+});
+
+app.post("/server/api/super-admin/admins", async (c) => {
   const admin = createAdminClient();
   const user = c.get("user");
   const body = await c.req.json().catch(() => null);
@@ -347,6 +632,8 @@ app.post("/make-server-2c83666d/api/admin/create-user", async (c) => {
       : "Admin User";
   const language =
     body.language === "fr" || body.language === "cr" ? body.language : "en";
+  const status =
+    body.status === "inactive" || body.status === "suspended" ? body.status : "active";
 
   if (!email) {
     return c.json({ error: "A valid email is required." }, 400);
@@ -364,19 +651,26 @@ app.post("/make-server-2c83666d/api/admin/create-user", async (c) => {
 
   if (
     requesterProfileError ||
-    requesterProfile?.role !== "admin" ||
+    requesterProfile?.role !== "superadmin" ||
     requesterProfile?.status !== "active"
   ) {
-    return c.json({ error: "Active admin access required." }, 403);
+    return c.json({ error: "Active super admin access required." }, 403);
   }
 
   const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    app_metadata: {
+      role: "admin",
+      user_type: "consumer",
+      status,
+      language,
+      created_by: user.id,
+    },
     user_metadata: {
       full_name: fullName,
-      user_type: "prosumer",
+      language,
     },
   });
 
@@ -384,27 +678,11 @@ app.post("/make-server-2c83666d/api/admin/create-user", async (c) => {
     return c.json({ error: createUserError?.message ?? "Unable to create admin user." }, 400);
   }
 
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({
-      full_name: fullName,
-      language,
-      role: "admin",
-      status: "active",
-      user_type: "prosumer",
-    })
-    .eq("id", createdUser.user.id);
-
-  if (profileError) {
-    await admin.auth.admin.deleteUser(createdUser.user.id);
-    return c.json({ error: profileError.message }, 400);
-  }
-
   const { error: notificationError } = await admin.from("notifications").insert({
     user_id: user.id,
     notification_type: "warning",
     title: "Admin account created",
-    message: `Admin ${email} was created by ${user.email ?? user.id}. Require a password change on first login.`,
+    message: `Admin ${email} was created by super admin ${user.email ?? user.id}. Require a password change on first login.`,
   });
 
   if (notificationError) {
@@ -416,12 +694,12 @@ app.post("/make-server-2c83666d/api/admin/create-user", async (c) => {
       id: createdUser.user.id,
       email: createdUser.user.email,
       role: "admin",
-      status: "active",
+      status,
     },
   });
 });
 
-app.post("/make-server-2c83666d/api/admin/users/:userId/password-reset", async (c) => {
+app.post("/server/api/admin/users/:userId/password-reset", async (c) => {
   const admin = createAdminClient();
   const user = c.get("user");
   const body = await c.req.json().catch(() => null);
@@ -444,10 +722,10 @@ app.post("/make-server-2c83666d/api/admin/users/:userId/password-reset", async (
 
   if (
     requesterProfileError ||
-    requesterProfile?.role !== "admin" ||
+    (requesterProfile?.role !== "admin" && requesterProfile?.role !== "superadmin") ||
     requesterProfile?.status !== "active"
   ) {
-    return c.json({ error: "Active admin access required." }, 403);
+    return c.json({ error: "Active staff access required." }, 403);
   }
 
   const { data: targetUserResult, error: targetUserError } = await admin.auth.admin.getUserById(userId);

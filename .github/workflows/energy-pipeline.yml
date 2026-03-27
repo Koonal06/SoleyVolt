@@ -1,0 +1,72 @@
+name: Energy Pipeline
+
+on:
+  schedule:
+    - cron: "15 * * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum number of rows to process"
+        required: false
+        default: "100"
+      promote:
+        description: "Promote linked rows into live energy_readings"
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: "Calculate without writing changes"
+        required: false
+        default: false
+        type: boolean
+      statuses:
+        description: "Comma-separated statuses to process"
+        required: false
+        default: "pending,failed"
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ENERGY_CALCULATION_VERSION: ${{ vars.ENERGY_CALCULATION_VERSION }}
+      ENERGY_BILLING_ANCHOR_DATE: ${{ vars.ENERGY_BILLING_ANCHOR_DATE }}
+      PIPELINE_LIMIT: ${{ github.event.inputs.limit || '100' }}
+      PIPELINE_PROMOTE: ${{ github.event.inputs.promote || 'true' }}
+      PIPELINE_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      PIPELINE_STATUSES: ${{ github.event.inputs.statuses || 'pending,failed' }}
+      PIPELINE_TRIGGER_SOURCE: github-actions
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate pipeline secrets
+        run: |
+          python - <<'PY'
+          import os, sys
+          missing = [name for name in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY") if not os.getenv(name)]
+          if missing:
+              raise SystemExit(f"Missing required GitHub secrets: {', '.join(missing)}")
+          PY
+
+      - name: Run energy pipeline
+        run: |
+          args=(scripts/energy_pipeline.py --limit "$PIPELINE_LIMIT" --statuses "$PIPELINE_STATUSES" --trigger-source "$PIPELINE_TRIGGER_SOURCE")
+          if [ -n "$ENERGY_BILLING_ANCHOR_DATE" ]; then
+            args+=(--anchor-date "$ENERGY_BILLING_ANCHOR_DATE")
+          fi
+          if [ "$PIPELINE_PROMOTE" = "true" ]; then
+            args+=(--promote)
+          fi
+          if [ "$PIPELINE_DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          python "${args[@]}"
