@@ -1,6 +1,14 @@
 name: Energy Pipeline
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/energy-pipeline.yml"
+      - "scripts/energy_pipeline.py"
+      - "scripts/ceb_legacy_logic.py"
+      - "supabase/migrations/20260327_energy_pipeline_runs.sql"
   schedule:
     - cron: "15 * * * *"
   workflow_dispatch:
