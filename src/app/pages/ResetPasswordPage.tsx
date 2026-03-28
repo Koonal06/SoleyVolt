@@ -53,7 +53,7 @@ export function ResetPasswordPage() {
 
       await supabase.auth.signOut();
       toast.success("Password updated successfully. Please sign in with your new password.");
-      navigate("/auth", { replace: true });
+      navigate("/login", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update password.");
     } finally {
@@ -88,7 +88,7 @@ export function ResetPasswordPage() {
               <div className="rounded-[1.65rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.93))] p-6 text-slate-900 shadow-inner sm:p-8">
                 <div className="mb-8 flex items-center justify-between">
                   <Link
-                    to="/auth"
+                    to="/login"
                     className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
                   >
                     <ArrowLeft className="h-4 w-4" />

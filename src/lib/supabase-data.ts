@@ -2,13 +2,15 @@ import { supabase } from "./supabase";
 
 export type ProfileRow = {
   id: string;
+  email: string | null;
   full_name: string | null;
   phone: string | null;
   language: "en" | "fr" | "cr";
-  role: "user" | "admin";
+  role: "user" | "admin" | "superadmin";
   user_type: "consumer" | "producer" | "prosumer";
   status: "active" | "inactive" | "suspended";
   avatar_url: string | null;
+  created_by?: string | null;
 };
 
 export type UserType = "consumer" | "producer" | "prosumer";
@@ -23,9 +25,12 @@ export type UserSettingsRow = {
 
 export type WalletRow = {
   user_id: string;
-  balance: number;
+  balance?: number | null;
   lifetime_earned: number;
   lifetime_spent: number;
+  yellow_token?: number;
+  red_token?: number;
+  green_token?: number;
   updated_at: string;
 };
 
@@ -71,7 +76,7 @@ export type UserWalletSummaryRow = {
   user_id: string;
   full_name: string | null;
   language: "en" | "fr" | "cr";
-  role: "user" | "admin";
+  role: "user" | "admin" | "superadmin";
   user_type: UserType;
   status: "active" | "inactive" | "suspended";
   balance: number;
@@ -89,7 +94,7 @@ export type UserPortalSummaryRow = {
   user_id: string;
   full_name: string | null;
   language: "en" | "fr" | "cr";
-  role: "user" | "admin";
+  role: "user" | "admin" | "superadmin";
   user_type: UserType;
   status: "active" | "inactive" | "suspended";
   balance: number;
@@ -136,6 +141,56 @@ export type NotificationRow = {
   created_at: string;
 };
 
+export type EnergyImportAdminRow = {
+  id: string;
+  source_file_name: string;
+  dataset_user_code: string;
+  dataset_user_type: UserType;
+  meter_id: string;
+  billing_cycle: number;
+  reading_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  imported_kwh: number;
+  exported_kwh: number;
+  net_kwh: number | null;
+  tokens_earned: number | null;
+  yellow_tokens: number | null;
+  red_tokens: number | null;
+  green_cap_kwh: number | null;
+  green_purchased_kwh: number | null;
+  remaining_green_cap_kwh: number | null;
+  settlement_required_kwh: number | null;
+  estimated_bill: number | null;
+  processing_status: "pending" | "processing" | "calculated" | "promoted" | "failed";
+  calculation_version: string | null;
+  processing_error: string | null;
+  calculated_at: string | null;
+  promoted_at: string | null;
+  linked_user_id: string | null;
+  linked_user_name: string | null;
+  linked_user_email: string | null;
+};
+
+export type DatasetUserMappingRow = {
+  dataset_user_code: string;
+  dataset_user_type: UserType;
+  linked_user_id: string;
+  source_file_name: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminProfileOptionRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  role?: "user" | "admin" | "superadmin";
+  user_type: UserType;
+  status: "active" | "inactive" | "suspended";
+};
+
 function requireSupabase() {
   if (!supabase) {
     throw new Error("Supabase is not configured.");
@@ -147,13 +202,15 @@ function requireSupabase() {
 async function requireCurrentUserId() {
   const client = requireSupabase();
   const {
-    data: { user },
+    data: { session },
     error,
-  } = await client.auth.getUser();
+  } = await client.auth.getSession();
 
   if (error) {
     throw error;
   }
+
+  const user = session?.user ?? null;
 
   if (!user) {
     throw new Error("Authentication required.");
@@ -162,9 +219,8 @@ async function requireCurrentUserId() {
   return user.id;
 }
 
-export async function getMyProfile() {
+export async function getProfileByUserId(userId: string) {
   const client = requireSupabase();
-  const userId = await requireCurrentUserId();
   const { data, error } = await client.from("profiles").select("*").eq("id", userId).maybeSingle();
 
   if (error) {
@@ -172,6 +228,11 @@ export async function getMyProfile() {
   }
 
   return data as ProfileRow | null;
+}
+
+export async function getMyProfile() {
+  const userId = await requireCurrentUserId();
+  return getProfileByUserId(userId);
 }
 
 async function requireCurrentProfile() {
@@ -184,21 +245,35 @@ async function requireCurrentProfile() {
   return profile;
 }
 
-async function requireAdminProfile() {
+async function requireStaffProfile() {
   const profile = await requireCurrentProfile();
 
-  if (profile.role !== "admin") {
-    throw new Error("Admin access required.");
+  if (profile.role !== "admin" && profile.role !== "superadmin") {
+    throw new Error("Staff access required.");
   }
 
   if (profile.status !== "active") {
-    throw new Error("Your admin account is not active.");
+    throw new Error("Your staff account is not active.");
   }
 
   return profile;
 }
 
-export async function updateMyProfile(values: Partial<Pick<ProfileRow, "full_name" | "phone" | "language" | "avatar_url" | "user_type">>) {
+async function requireSuperAdminProfile() {
+  const profile = await requireCurrentProfile();
+
+  if (profile.role !== "superadmin") {
+    throw new Error("Super admin access required.");
+  }
+
+  if (profile.status !== "active") {
+    throw new Error("Your super admin account is not active.");
+  }
+
+  return profile;
+}
+
+export async function updateMyProfile(values: Partial<Pick<ProfileRow, "full_name" | "phone" | "language" | "avatar_url">>) {
   const client = requireSupabase();
   const userId = await requireCurrentUserId();
   const { data, error } = await client.from("profiles").update(values).eq("id", userId).select("*").maybeSingle();
@@ -389,7 +464,7 @@ export async function getCoinSettings() {
 
 export async function updateCoinSettings(values: Partial<Omit<CoinSettingsRow, "id" | "updated_at">>) {
   const client = requireSupabase();
-  await requireAdminProfile();
+  await requireStaffProfile();
   const { data, error } = await client
     .from("coin_settings")
     .update(values)
@@ -401,7 +476,17 @@ export async function updateCoinSettings(values: Partial<Omit<CoinSettingsRow, "
     throw error;
   }
 
-  return data as CoinSettingsRow | null;
+  if (data) {
+    return data as CoinSettingsRow | null;
+  }
+
+  const existing = await getCoinSettings();
+
+  if (!existing) {
+    throw new Error("Coin settings row was not found.");
+  }
+
+  return existing;
 }
 
 export async function purchaseGreenCoins(amount: number, paymentReference?: string) {
@@ -420,7 +505,7 @@ export async function purchaseGreenCoins(amount: number, paymentReference?: stri
 
 export async function getAdminOverview() {
   const client = requireSupabase();
-  await requireAdminProfile();
+  await requireStaffProfile();
   const { data, error } = await client.from("admin_overview").select("*").maybeSingle();
 
   if (error) {
@@ -432,7 +517,7 @@ export async function getAdminOverview() {
 
 export async function getAdminUsers(limit = 10) {
   const client = requireSupabase();
-  await requireAdminProfile();
+  await requireStaffProfile();
   const { data, error } = await client
     .from("user_wallet_summary")
     .select("*")
@@ -448,7 +533,7 @@ export async function getAdminUsers(limit = 10) {
 
 export async function getAdminPurchases(limit = 20) {
   const client = requireSupabase();
-  await requireAdminProfile();
+  await requireStaffProfile();
   const { data, error } = await client
     .from("green_coin_purchases")
     .select("*")
@@ -464,7 +549,7 @@ export async function getAdminPurchases(limit = 20) {
 
 export async function getRecentTransactions(limit = 10) {
   const client = requireSupabase();
-  await requireAdminProfile();
+  await requireStaffProfile();
   const { data, error } = await client
     .from("wallet_transactions")
     .select("*")
@@ -480,7 +565,7 @@ export async function getRecentTransactions(limit = 10) {
 
 export async function getNotifications(limit = 10) {
   const client = requireSupabase();
-  await requireAdminProfile();
+  await requireStaffProfile();
   const { data, error } = await client
     .from("notifications")
     .select("*")
@@ -492,4 +577,96 @@ export async function getNotifications(limit = 10) {
   }
 
   return (data ?? []) as NotificationRow[];
+}
+
+export async function getEnergyImportAdminRows(limit = 100) {
+  const client = requireSupabase();
+  await requireStaffProfile();
+  const { data, error } = await client
+    .from("energy_import_admin_view")
+    .select("*")
+    .order("dataset_user_code", { ascending: true })
+    .order("billing_cycle", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as EnergyImportAdminRow[];
+}
+
+export async function getDatasetUserMappings() {
+  const client = requireSupabase();
+  await requireStaffProfile();
+  const { data, error } = await client
+    .from("dataset_user_mappings")
+    .select("*")
+    .order("dataset_user_code", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as DatasetUserMappingRow[];
+}
+
+export async function getAdminProfileOptions(limit = 100) {
+  const client = requireSupabase();
+  await requireStaffProfile();
+  const { data, error } = await client
+    .from("profiles")
+    .select("id, full_name, email, role, user_type, status")
+    .eq("status", "active")
+    .order("full_name", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as AdminProfileOptionRow[];
+}
+
+export async function applyDatasetUserMapping(
+  datasetUserCode: string,
+  linkedUserId: string,
+  options?: {
+    datasetUserType?: UserType;
+    sourceFileName?: string | null;
+    notes?: string | null;
+  },
+) {
+  const client = requireSupabase();
+  await requireStaffProfile();
+  const { data, error } = await client.rpc("apply_dataset_user_mapping", {
+    dataset_code: datasetUserCode,
+    profile_id: linkedUserId,
+    dataset_type: options?.datasetUserType ?? null,
+    source_file: options?.sourceFileName ?? null,
+    mapping_notes: options?.notes ?? null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as DatasetUserMappingRow;
+}
+
+export async function getManagedProfilesByRole(roles: Array<ProfileRow["role"]>, limit = 100) {
+  const client = requireSupabase();
+  await requireSuperAdminProfile();
+  const { data, error } = await client
+    .from("profiles")
+    .select("id, email, full_name, role, user_type, status, language, created_by")
+    .in("role", roles)
+    .order("full_name", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as ProfileRow[];
 }

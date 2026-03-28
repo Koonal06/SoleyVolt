@@ -3,22 +3,27 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { hasSupabaseEnv, supabase } from "../../lib/supabase";
-import { getMyProfile, type ProfileRow } from "../../lib/supabase-data";
+import { getProfileByUserId, type ProfileRow } from "../../lib/supabase-data";
+import { getDefaultRouteForRole, isElevatedRole, isSuperAdminRole } from "../lib/access";
 
 type AuthContextValue = {
   isConfigured: boolean;
   isLoading: boolean;
+  isProfileLoading: boolean;
   session: Session | null;
   user: User | null;
   profile: ProfileRow | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   userType: ProfileRow["user_type"] | null;
   defaultRoute: string;
+  patchProfile: (updates: Partial<ProfileRow>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -28,6 +33,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const profileCacheRef = useRef<Map<string, ProfileRow | null>>(new Map());
+  const currentUserIdRef = useRef<string | null>(null);
+  const currentProfileRef = useRef<ProfileRow | null>(null);
+  const profileRequestIdRef = useRef(0);
+
+  const patchProfile = (updates: Partial<ProfileRow>) => {
+    const currentUserId = currentUserIdRef.current;
+
+    setProfile((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextProfile = {
+        ...current,
+        ...updates,
+      };
+
+      currentProfileRef.current = nextProfile;
+
+      if (currentUserId) {
+        profileCacheRef.current.set(currentUserId, nextProfile);
+      }
+
+      return nextProfile;
+    });
+  };
+
+  useEffect(() => {
+    currentProfileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     if (!supabase) {
@@ -37,49 +74,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    async function syncSession(nextSession: Session | null) {
+    async function syncSession(nextSession: Session | null, forceProfileRefresh = false) {
       if (!mounted) {
         return;
       }
 
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
+      const nextUser = nextSession?.user ?? null;
+      const nextUserId = nextUser?.id ?? null;
+      const sameUser = currentUserIdRef.current === nextUserId;
 
-      if (!nextSession) {
+      currentUserIdRef.current = nextUserId;
+      setSession(nextSession);
+      setUser(nextUser);
+      setIsLoading(false);
+
+      if (!nextUserId) {
         setProfile(null);
-        setIsLoading(false);
+        setIsProfileLoading(false);
         return;
       }
 
-      try {
-        const nextProfile = await getMyProfile();
-
-        if (!mounted) {
+      if (!forceProfileRefresh) {
+        if (sameUser && currentProfileRef.current) {
+          setIsProfileLoading(false);
           return;
         }
 
+        if (profileCacheRef.current.has(nextUserId)) {
+          setProfile(profileCacheRef.current.get(nextUserId) ?? null);
+          setIsProfileLoading(false);
+          return;
+        }
+      }
+
+      setIsProfileLoading(true);
+      const requestId = ++profileRequestIdRef.current;
+
+      try {
+        const nextProfile = await getProfileByUserId(nextUserId);
+
+        if (!mounted || requestId !== profileRequestIdRef.current || currentUserIdRef.current !== nextUserId) {
+          return;
+        }
+
+        profileCacheRef.current.set(nextUserId, nextProfile);
         setProfile(nextProfile);
       } catch {
-        if (!mounted) {
+        if (!mounted || requestId !== profileRequestIdRef.current || currentUserIdRef.current !== nextUserId) {
           return;
         }
 
         setProfile(null);
       } finally {
         if (mounted) {
-          setIsLoading(false);
+          setIsProfileLoading(false);
         }
       }
     }
 
     supabase.auth.getSession().then(({ data }) => {
       void syncSession(data.session);
+    }).catch(() => {
+      if (mounted) {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setIsLoading(false);
+        setIsProfileLoading(false);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      void syncSession(nextSession);
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      void syncSession(nextSession, event === "USER_UPDATED");
     });
 
     return () => {
@@ -92,14 +160,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       isConfigured: hasSupabaseEnv,
       isLoading,
+      isProfileLoading,
       session,
       user,
       profile,
-      isAdmin: profile?.role === "admin",
+      isAdmin: isElevatedRole(profile?.role),
+      isSuperAdmin: isSuperAdminRole(profile?.role),
       userType: profile?.user_type ?? null,
-      defaultRoute: profile?.role === "admin" ? "/admin/dashboard" : "/app/dashboard",
+      defaultRoute: getDefaultRouteForRole(profile?.role),
+      patchProfile,
     }),
-    [isLoading, profile, session, user],
+    [isLoading, isProfileLoading, profile, session, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

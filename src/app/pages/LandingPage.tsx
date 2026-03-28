@@ -16,16 +16,45 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { useGreenCoinMarket } from "../../lib/green-coin-market";
 import { BrandLogo } from "../components/BrandLogo";
 import { getStoredLanguage, setStoredLanguage } from "../lib/language";
 
 type Language = "en" | "fr" | "cr";
+
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatCurrency(value: number) {
+  return currencyFormatter.format(value);
+}
+
+function formatSignedPercent(value: number) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function formatUpdatedTime(value: string | null | undefined) {
+  if (!value) {
+    return "Awaiting sync";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(value));
+}
 
 export function LandingPage() {
   const [lang, setLang] = useState<Language>(() => getStoredLanguage());
   const [formData, setFormData] = useState({ name: "", email: "", message: "" });
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const { basePrice, livePrice, changePercent, phaseLabel, clockLabel, settings, isLoading: isLoadingMarket, source } = useGreenCoinMarket();
 
   useEffect(() => {
     setStoredLanguage(lang);
@@ -37,7 +66,7 @@ export function LandingPage() {
       heroTitle: "A modern energy exchange for solar households, communities, and Mauritius.",
       heroDesc:
         "Convert clean power into living value. SoleyVolt turns solar production into secure digital balances you can track, store, and transfer in real time.",
-      getStarted: "Enter the Portal",
+      getStarted: "User Login",
       login: "Login",
       home: "Home",
       about: "Vision",
@@ -61,7 +90,7 @@ export function LandingPage() {
       metricSecurity: "Secure auth layer",
       badge: "Digital Energy Exchange",
       ctaTitle: "Bring your solar output into a trusted transaction layer.",
-      ctaBody: "Create your account, access your wallet, and start building a cleaner value loop.",
+      ctaBody: "Log in with your assigned credentials and access your wallet and energy activity through a secure portal.",
       heroEyebrow: "Built for secure energy value exchange",
       heroPanelTitle: "Live network pulse",
       heroPanelNote: "Production, transfers, and identity flow through one trusted layer.",
@@ -123,7 +152,7 @@ export function LandingPage() {
       faqFourQ: "Is the platform secure?",
       faqFourA: "Yes. SoleyVolt uses authenticated access, secure backend services, and a realtime data foundation built around Supabase.",
       faqFiveQ: "How do I get started?",
-      faqFiveA: "Create an account, enter the portal, and connect your workflow around energy tracking, wallet balances, and transfers.",
+      faqFiveA: "Request internal onboarding from the SoleyVolt team, receive your credentials, then sign in to your assigned portal.",
       contactOne: "Pilot-friendly onboarding path",
       contactTwo: "Wallet, transfer, and dashboard workflow guidance",
       contactThree: "Support for admin and participant setup",
@@ -141,7 +170,7 @@ export function LandingPage() {
       heroTitle: "Un echange moderne d'energie pour les foyers solaires, les communautes et Maurice.",
       heroDesc:
         "Transformez l'energie propre en valeur utile. SoleyVolt convertit la production solaire en soldes numeriques securises, suivis et transferables en temps reel.",
-      getStarted: "Entrer dans le portail",
+      getStarted: "Connexion utilisateur",
       login: "Connexion",
       home: "Accueil",
       about: "Vision",
@@ -165,7 +194,7 @@ export function LandingPage() {
       metricSecurity: "Couche d'authentification securisee",
       badge: "Echange Numerique d'Energie",
       ctaTitle: "Faites entrer votre production solaire dans une couche transactionnelle fiable.",
-      ctaBody: "Creez votre compte, accedez a votre portefeuille et lancez une boucle de valeur plus propre.",
+      ctaBody: "Connectez-vous avec vos identifiants attribues pour acceder a votre portefeuille et a votre activite energie dans un portail securise.",
       heroEyebrow: "Concu pour un echange de valeur energetique securise",
       heroPanelTitle: "Pulse du reseau en direct",
       heroPanelNote: "Production, transferts et identite circulent dans une seule couche fiable.",
@@ -227,7 +256,7 @@ export function LandingPage() {
       faqFourQ: "La plateforme est-elle securisee ?",
       faqFourA: "Oui. SoleyVolt utilise une authentification securisee, des services backend proteges et une base temps reel construite avec Supabase.",
       faqFiveQ: "Comment commencer ?",
-      faqFiveA: "Creez un compte, entrez dans le portail et connectez votre workflow au suivi energie, aux soldes et aux transferts.",
+      faqFiveA: "Demandez un onboarding interne a l'equipe SoleyVolt, recevez vos identifiants puis connectez-vous a votre portail attribue.",
       contactOne: "Parcours d'onboarding adapte aux pilotes",
       contactTwo: "Guidage sur portefeuille, transferts et tableaux de bord",
       contactThree: "Support pour la mise en place admin et participants",
@@ -245,7 +274,7 @@ export function LandingPage() {
       heroTitle: "Enn platform lenzerzi modern pou lakaz soler, kominote, ek Moris.",
       heroDesc:
         "Transforme lenerzi prop an valer ki bouze. SoleyVolt convertir prodiksion soler an balans digital sekirize ki to kapav swiv, garde ek transfer an direk.",
-      getStarted: "Antre dan Portal",
+      getStarted: "Login user",
       login: "Konekte",
       home: "Lakaz",
       about: "Vizyon",
@@ -269,7 +298,7 @@ export function LandingPage() {
       metricSecurity: "Layer auth sekirize",
       badge: "Digital Energy Exchange",
       ctaTitle: "Fer to prodiksion soler rant dan enn layer tranzaksion ki dimoun krwar ladan.",
-      ctaBody: "Kree to kont, rant dan to wallet, ek koumans enn loop valer pli prop.",
+      ctaBody: "Konekte avek credential ki finn atribie pou rant dan enn portal sekirize pou to wallet ek aktivite lenerzi.",
       heroEyebrow: "Fer pou enn echange valer lenzerzi ki sekirize",
       heroPanelTitle: "Puls rezo an direk",
       heroPanelNote: "Prodiksion, transfer ek idantite pase dan enn sel layer ki dimoun krwar ladan.",
@@ -331,7 +360,7 @@ export function LandingPage() {
       faqFourQ: "Eski platform-la sekirize?",
       faqFourA: "Wi. SoleyVolt servi auth sekirize, servis backend proteze, ek enn fondasion real-time ki baze lor Supabase.",
       faqFiveQ: "Kouma mo koumanse?",
-      faqFiveA: "Kree enn kont, rant dan portal, ek konekte to workflow ar tracking lenerzi, balans wallet ek transfer.",
+      faqFiveA: "Demann onboarding interne ar lekip SoleyVolt, resevwar to credential, apre konekte dan portal ki finn atribie pou twa.",
       contactOne: "Parcours onboarding adapte pou pilot",
       contactTwo: "Led lor workflow wallet, transfer ek dashboard",
       contactThree: "Sipor pou setup admin ek partisipan",
@@ -448,6 +477,52 @@ export function LandingPage() {
   >;
 
   const currentCopy = copy[lang];
+  const applyNowLabel = lang === "fr" ? "Postuler" : lang === "cr" ? "Aplik Asterla" : "Apply Now";
+  const adminLoginLabel = lang === "fr" ? "Connexion admin" : lang === "cr" ? "Login admin" : "Admin Login";
+  const marketCopy = {
+    en: {
+      metricLabel: "Green Coin live price",
+      marketTitle: "Green Coin market",
+      marketBody: "The public quote tracks Mauritius demand in real time.",
+      baseLabel: "Admin base",
+      clockLabel: "Mauritius clock",
+      trendLabel: "Live move",
+      signalPrice: "Green Coin",
+      signalPhase: "Market phase",
+      signalDelta: "Shift vs base",
+      syncLabel: "Admin linked",
+      fallbackLabel: "Public sync",
+      updatedLabel: "Last synced",
+    },
+    fr: {
+      metricLabel: "Prix direct Green Coin",
+      marketTitle: "Marche Green Coin",
+      marketBody: "Le prix public suit la demande mauricienne en direct.",
+      baseLabel: "Base admin",
+      clockLabel: "Heure Maurice",
+      trendLabel: "Variation directe",
+      signalPrice: "Green Coin",
+      signalPhase: "Phase du marche",
+      signalDelta: "Ecart vs base",
+      syncLabel: "Lie a l'admin",
+      fallbackLabel: "Sync public",
+      updatedLabel: "Derniere synchro",
+    },
+    cr: {
+      metricLabel: "Pri Green Coin live",
+      marketTitle: "Marse Green Coin",
+      marketBody: "Pri piblik swiv demann Moris an direk.",
+      baseLabel: "Baz admin",
+      clockLabel: "Ler Moris",
+      trendLabel: "Mouvman live",
+      signalPrice: "Green Coin",
+      signalPhase: "Faz marse",
+      signalDelta: "Sanzman lor baz",
+      syncLabel: "Lye ar admin",
+      fallbackLabel: "Sync piblik",
+      updatedLabel: "Dernie sync",
+    },
+  }[lang];
 
   const features = [
     {
@@ -519,17 +594,18 @@ export function LandingPage() {
   ];
 
   const metrics = [
+    { value: `${formatCurrency(livePrice)} MUR`, label: marketCopy.metricLabel },
     { value: "12.8K", label: currentCopy.metricUsers },
-    { value: "1.2M SLT", label: currentCopy.metricVolume },
     { value: "< 1s", label: currentCopy.metricSync },
     { value: "24/7", label: currentCopy.metricSecurity },
   ];
 
   const heroSignals = [
-    { label: currentCopy.activityOne, value: "+120 SLT", tone: "text-emerald-300" },
-    { label: currentCopy.activityTwo, value: "-30 SLT", tone: "text-amber-300" },
-    { label: currentCopy.activityThree, value: "+45 SLT", tone: "text-cyan-300" },
+    { label: marketCopy.signalPrice, value: `${formatCurrency(livePrice)} MUR`, tone: "text-emerald-300" },
+    { label: marketCopy.signalPhase, value: phaseLabel, tone: "text-amber-300" },
+    { label: marketCopy.signalDelta, value: formatSignedPercent(changePercent), tone: "text-cyan-300" },
   ];
+  const marketSyncLabel = source === "supabase" ? marketCopy.syncLabel : marketCopy.fallbackLabel;
 
   const proofCards = [
     {
@@ -616,6 +692,9 @@ export function LandingPage() {
             <a href="#faq" className="transition hover:text-white">
               {currentCopy.faq}
             </a>
+            <Link to="/apply" className="transition hover:text-white">
+              {applyNowLabel}
+            </Link>
             <a href="#contact" className="transition hover:text-white">
               {currentCopy.contact}
             </a>
@@ -641,11 +720,23 @@ export function LandingPage() {
               </select>
             </div>
             <Link
-              to="/auth"
+              to="/login"
               className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#f2b61f,#f59e0b,#1f8f74)] px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_40px_rgba(245,158,11,0.26)] transition hover:brightness-105"
             >
               {currentCopy.getStarted}
               <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              to="/apply"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              {applyNowLabel}
+            </Link>
+            <Link
+              to="/admin/login"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              {adminLoginLabel}
             </Link>
           </div>
         </div>
@@ -667,10 +758,10 @@ export function LandingPage() {
 
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <Link
-                  to="/auth"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#f2b61f,#f59e0b,#1f8f74)] px-6 py-4 text-sm font-semibold text-slate-950 shadow-[0_18px_40px_rgba(245,158,11,0.28)] transition hover:brightness-105"
+                  to="/apply"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#10b981,#22c55e,#f2b61f)] px-6 py-4 text-sm font-semibold text-slate-950 shadow-[0_18px_40px_rgba(16,185,129,0.24)] transition hover:brightness-105"
                 >
-                  {currentCopy.getStarted}
+                  {applyNowLabel}
                   <ArrowRight className="h-5 w-5" />
                 </Link>
                 <a
@@ -727,8 +818,8 @@ export function LandingPage() {
 
               <div className="rounded-[2rem] border border-white/12 bg-white/[0.08] p-4 shadow-[0_35px_120px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
                 <div className="grid gap-4 rounded-[1.7rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.94))] p-5 text-slate-900 sm:p-6">
-                  <div className="grid gap-4 sm:grid-cols-[1.1fr_0.9fr]">
-                    <div className="rounded-[1.5rem] bg-[linear-gradient(145deg,#082447,#0b3466,#115d5f)] p-6 text-white">
+                  <div className="items-start gap-4 sm:grid sm:grid-cols-[1.1fr_0.9fr]">
+                    <div className="self-start rounded-[1.5rem] bg-[linear-gradient(145deg,#082447,#0b3466,#115d5f)] p-6 text-white">
                       <div className="mb-8 flex items-center justify-between">
                         <div>
                           <p className="text-sm uppercase tracking-[0.24em] text-amber-200/80">{currentCopy.energyWallet}</p>
@@ -770,45 +861,72 @@ export function LandingPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="mb-4 flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                            <TrendingUp className="h-5 w-5" />
+                    <div>
+                      <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                              <TrendingUp className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">{marketCopy.marketTitle}</p>
+                              <p className="text-sm text-slate-500">{marketCopy.marketBody}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-slate-900">{currentCopy.realtimeActivityTitle}</p>
-                            <p className="text-sm text-slate-500">{currentCopy.realtimeActivityBody}</p>
+                          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                            {isLoadingMarket ? "Syncing" : marketSyncLabel}
                           </div>
                         </div>
-                        <div className="space-y-3">
-                          {[currentCopy.activityOne, currentCopy.activityTwo, currentCopy.activityThree].map((item) => (
-                            <div key={item} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                              {item}
+                        <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                          <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                            <span>{marketCopy.updatedLabel}</span>
+                            <span>{formatUpdatedTime(settings?.updated_at)}</span>
+                          </div>
+                          <div className="mt-2 flex items-end justify-between gap-4">
+                            <div>
+                              <p className="text-xs text-slate-500">{marketCopy.signalPrice}</p>
+                              <p className="text-2xl font-semibold text-slate-900">{formatCurrency(livePrice)} MUR</p>
                             </div>
-                          ))}
+                            <div className={`rounded-full px-3 py-1 text-sm font-semibold ${changePercent >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                              {formatSignedPercent(changePercent)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-2.5 text-sm text-slate-700">
+                            <span>{marketCopy.baseLabel}</span>
+                            <span className="font-semibold text-slate-900">{formatCurrency(basePrice)} MUR</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-2.5 text-sm text-slate-700">
+                            <span>{marketCopy.clockLabel}</span>
+                            <span className="font-semibold text-slate-900">{clockLabel}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-2.5 text-sm text-slate-700">
+                            <span>{marketCopy.signalPhase}</span>
+                            <span className="font-semibold text-slate-900">{phaseLabel}</span>
+                          </div>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="rounded-[1.4rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc,#eef6f5)] p-5">
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{currentCopy.platformSignalsTitle}</p>
-                          <div className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                            {currentCopy.active}
+                    <div className="rounded-[1.4rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc,#eef6f5)] p-5 sm:col-span-2">
+                      <div className="mb-4 flex items-center justify-between">
+                        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{currentCopy.platformSignalsTitle}</p>
+                        <div className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                          {currentCopy.active}
+                        </div>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        {[
+                          currentCopy.signalOne,
+                          currentCopy.signalTwo,
+                          currentCopy.signalThree,
+                        ].map((item) => (
+                          <div key={item} className="flex items-start gap-3 rounded-2xl bg-white/60 px-4 py-4">
+                            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                            <p className="text-sm text-slate-700">{item}</p>
                           </div>
-                        </div>
-                        <div className="space-y-3">
-                          {[
-                            currentCopy.signalOne,
-                            currentCopy.signalTwo,
-                            currentCopy.signalThree,
-                          ].map((item) => (
-                            <div key={item} className="flex items-start gap-3">
-                              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                              <p className="text-sm text-slate-700">{item}</p>
-                            </div>
-                          ))}
-                        </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1043,13 +1161,27 @@ export function LandingPage() {
                 </h2>
                 <p className="mt-4 text-base leading-8 text-white/72">{currentCopy.ctaBody}</p>
               </div>
-              <Link
-                to="/auth"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
-              >
-                {currentCopy.getStarted}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <div className="flex flex-col gap-4 sm:flex-row">
+                <Link
+                  to="/apply"
+                  className="inline-flex items-center justify-center rounded-full bg-white px-6 py-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+                >
+                  {applyNowLabel}
+                </Link>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  {currentCopy.getStarted}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  to="/admin/login"
+                  className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  {adminLoginLabel}
+                </Link>
+              </div>
             </div>
           </div>
         </section>

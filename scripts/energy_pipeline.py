@@ -346,6 +346,186 @@ def promote_energy_reading(
     )
 
 
+def update_wallet_after_calculation(
+    client: SupabaseRestClient,
+    *,
+    user_id: str,
+    yellow_tokens: Decimal,
+    red_tokens: Decimal,
+    import_id: str,
+) -> dict[str, Any]:
+    """
+    Reconcile token balances for a calculated import row without double counting reruns.
+    Falls back to wallet_transactions metadata when wallet_audit_log is unavailable.
+    """
+    wallets = client.select(
+        "wallets",
+        select="user_id,lifetime_earned,lifetime_spent,yellow_token,red_token,green_token",
+        filters={"user_id": f"eq.{user_id}"},
+        limit=1,
+    )
+
+    current_wallet = wallets[0] if wallets else None
+    if not current_wallet:
+        created = client.insert(
+            "wallets",
+            [{
+                "user_id": user_id,
+                "lifetime_earned": 0.0,
+                "lifetime_spent": 0.0,
+                "yellow_token": 0.0,
+                "red_token": 0.0,
+                "green_token": 0.0,
+                "updated_at": utc_now_iso(),
+            }],
+        )
+        current_wallet = created[0] if created else {
+            "lifetime_earned": 0,
+            "lifetime_spent": 0,
+            "yellow_token": 0,
+            "red_token": 0,
+            "green_token": 0,
+        }
+
+    previous_yellow = Decimal("0")
+    previous_red = Decimal("0")
+    previous_green = Decimal("0")
+    audit_row_id: str | None = None
+
+    try:
+        audit_rows = client.select(
+            "wallet_audit_log",
+            select="id,yellow_delta,red_delta,green_delta",
+            filters={
+                "user_id": f"eq.{user_id}",
+                "import_id": f"eq.{import_id}",
+                "source": "eq.monthly_calculation",
+            },
+            limit=1,
+        )
+        if audit_rows:
+            audit_row = audit_rows[0]
+            audit_row_id = str(audit_row.get("id"))
+            previous_yellow = decimalize(audit_row.get("yellow_delta"))
+            previous_red = decimalize(audit_row.get("red_delta"))
+            previous_green = decimalize(audit_row.get("green_delta"))
+    except Exception:
+        try:
+            tx_rows = client.select(
+                "wallet_transactions",
+                select="id,metadata",
+                filters={
+                    "user_id": f"eq.{user_id}",
+                    "description": "eq.Legacy energy pipeline wallet reconciliation",
+                },
+                order="created_at.desc",
+                limit=50,
+            )
+            matched = next(
+                (
+                    row
+                    for row in tx_rows
+                    if isinstance(row.get("metadata"), dict)
+                    and str(row["metadata"].get("import_id")) == str(import_id)
+                ),
+                None,
+            )
+            if matched:
+                audit_row_id = str(matched.get("id"))
+                metadata = matched.get("metadata") or {}
+                previous_yellow = decimalize(metadata.get("yellow_delta"))
+                previous_red = decimalize(metadata.get("red_delta"))
+                previous_green = decimalize(metadata.get("green_delta"))
+        except Exception:
+            pass
+
+    delta_yellow = round2(yellow_tokens - previous_yellow)
+    delta_red = round2(red_tokens - previous_red)
+    delta_green = round2(Decimal("0") - previous_green)
+
+    if delta_yellow == Decimal("0.00") and delta_red == Decimal("0.00") and delta_green == Decimal("0.00"):
+        return {
+            "yellow_token": decimalize(current_wallet.get("yellow_token")),
+            "red_token": decimalize(current_wallet.get("red_token")),
+            "green_token": decimalize(current_wallet.get("green_token")),
+        }
+
+    yellow_new = round2(max(decimalize(current_wallet.get("yellow_token")) + delta_yellow, Decimal("0")))
+    red_new = round2(max(decimalize(current_wallet.get("red_token")) + delta_red, Decimal("0")))
+    green_new = round2(max(decimalize(current_wallet.get("green_token")) + delta_green, Decimal("0")))
+    balance_new = round2(max(yellow_new + green_new - red_new, Decimal("0")))
+    lifetime_earned_new = round2(
+        decimalize(current_wallet.get("lifetime_earned")) + max(delta_yellow + delta_green, Decimal("0"))
+    )
+    lifetime_spent_new = round2(
+        decimalize(current_wallet.get("lifetime_spent"))
+        + max(delta_red, Decimal("0"))
+        + abs(min(delta_yellow + delta_green, Decimal("0")))
+    )
+
+    client.patch(
+        "wallets",
+        {"user_id": f"eq.{user_id}"},
+        {
+            "yellow_token": float(yellow_new),
+            "red_token": float(red_new),
+            "green_token": float(green_new),
+            "lifetime_earned": float(lifetime_earned_new),
+            "lifetime_spent": float(lifetime_spent_new),
+            "updated_at": utc_now_iso(),
+        },
+    )
+
+    audit_payload = {
+        "user_id": user_id,
+        "import_id": import_id,
+        "yellow_delta": float(yellow_tokens),
+        "red_delta": float(red_tokens),
+        "green_delta": 0.0,
+        "source": "monthly_calculation",
+        "metadata": {
+            "yellow_token_balance": float(yellow_new),
+            "red_token_balance": float(red_new),
+            "green_token_balance": float(green_new),
+            "combined_balance": float(balance_new),
+        },
+        "updated_at": utc_now_iso(),
+    }
+
+    try:
+        client.upsert("wallet_audit_log", [audit_payload], on_conflict="user_id,import_id,source")
+    except Exception:
+        tx_payload = {
+            "user_id": user_id,
+            "transaction_type": "adjustment" if (delta_yellow + delta_green - delta_red) <= Decimal("0") else "earn",
+            "amount": float(round2(delta_yellow + delta_green - delta_red)),
+            "description": "Legacy energy pipeline wallet reconciliation",
+            "status": "completed",
+            "metadata": {
+                "source": "monthly_calculation",
+                "import_id": import_id,
+                "yellow_delta": float(yellow_tokens),
+                "red_delta": float(red_tokens),
+                "green_delta": 0.0,
+                "yellow_token_balance": float(yellow_new),
+                "red_token_balance": float(red_new),
+                "green_token_balance": float(green_new),
+                "combined_balance": float(balance_new),
+            },
+        }
+        if audit_row_id:
+            client.patch("wallet_transactions", {"id": f"eq.{audit_row_id}"}, tx_payload)
+        else:
+            client.insert("wallet_transactions", [tx_payload])
+
+    return {
+        "yellow_token": yellow_new,
+        "red_token": red_new,
+        "green_token": green_new,
+        "balance": balance_new,
+    }
+
+
 def process_rows(
     client: SupabaseRestClient,
     *,
@@ -474,6 +654,24 @@ def process_rows(
                 promote_energy_reading(client, row, calculated, reading_date)
                 if row.get("linked_user_id") and reading_date:
                     promoted += 1
+                    linked_user_id = row.get("linked_user_id")
+                    if linked_user_id:
+                        try:
+                            yellow_tokens = decimalize(calculated.get("yellow_tokens", 0))
+                            red_tokens = decimalize(calculated.get("red_tokens", 0))
+                            if yellow_tokens > 0 or red_tokens > 0:
+                                update_wallet_after_calculation(
+                                    client,
+                                    user_id=linked_user_id,
+                                    yellow_tokens=yellow_tokens,
+                                    red_tokens=red_tokens,
+                                    import_id=str(row["id"]),
+                                )
+                        except Exception as wallet_exc:  # noqa: BLE001
+                            print(
+                                f"Warning: Wallet update failed for user {linked_user_id}: {wallet_exc}",
+                                file=sys.stderr,
+                            )
 
             client.patch("energy_readings_import", {"id": f"eq.{row['id']}"}, import_patch)
         except Exception as exc:  # noqa: BLE001

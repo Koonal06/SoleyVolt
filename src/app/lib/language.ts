@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 export type AppLanguage = "en" | "fr" | "cr";
 
 export const APP_LANGUAGE_STORAGE_KEY = "soleyvolt-language";
@@ -19,4 +21,37 @@ export function setStoredLanguage(language: AppLanguage) {
 
   window.localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, language);
   window.dispatchEvent(new Event(APP_LANGUAGE_EVENT));
+}
+
+export function useAppLanguage(preferredLanguage?: AppLanguage | null) {
+  const [language, setLanguage] = useState<AppLanguage>(() => preferredLanguage ?? getStoredLanguage());
+
+  useEffect(() => {
+    const nextLanguage = preferredLanguage ?? getStoredLanguage();
+    setLanguage(nextLanguage);
+
+    if (preferredLanguage && preferredLanguage !== getStoredLanguage()) {
+      setStoredLanguage(preferredLanguage);
+    }
+  }, [preferredLanguage]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncLanguage = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener(APP_LANGUAGE_EVENT, syncLanguage);
+    window.addEventListener("storage", syncLanguage);
+
+    return () => {
+      window.removeEventListener(APP_LANGUAGE_EVENT, syncLanguage);
+      window.removeEventListener("storage", syncLanguage);
+    };
+  }, []);
+
+  return language;
 }

@@ -33,6 +33,7 @@ Portal rules:
 - user_type = energy behavior type
 
 Roles:
+- superadmin -> highest-level governance portal
 - admin -> separate admin portal
 - user -> normal user portal
 
@@ -42,6 +43,7 @@ User types:
 - prosumer = both consumes and produces, can receive Red or Yellow Coins, can also buy Green Coins
 
 Login redirect rules:
+- if role = superadmin -> /super-admin/dashboard
 - if role = admin -> /admin/dashboard
 - if role = user -> /app/dashboard
 
@@ -55,16 +57,26 @@ User portal routes:
 Admin portal routes:
 - /admin/dashboard
 - /admin/users
-- /admin/energy
-- /admin/purchases
+- /admin/readings
+- /admin/wallets
+- /admin/bills
 - /admin/logs
 - /admin/settings
+
+Super admin portal routes:
+- /super-admin/dashboard
+- /super-admin/admins
+- /super-admin/users
+- /super-admin/system
+- /super-admin/logs
+- /super-admin/settings
 
 Dashboard behavior:
 - consumer dashboard focuses on consumption, Red Coins, bill estimate, Green Coin purchase, bill reduction summary
 - producer dashboard focuses on exported energy, Yellow Coin earnings, production history, stored credits, future bill-offset projection
 - prosumer dashboard shows imported energy, exported energy, net energy, Red Coins, Yellow Coins, Green Coin purchase, wallet summary, bill estimate
 - admin dashboard focuses on monitoring, regulation, total users, total energy, total Red/Yellow/Green values, purchases, logs, suspicious activity
+- super admin dashboard focuses on governance, admin oversight, system access control, and full-platform visibility
 
 Design rules:
 - user portal and admin portal must look different
@@ -73,7 +85,10 @@ Design rules:
 
 Access control:
 - normal users must never access /admin/*
+- normal users must never access /super-admin/*
 - admins should not use the user portal as their main dashboard
+- only superadmin can create admins
+- only admin can create normal users
 - use protected routes and redirects
 
 Language support:
@@ -168,11 +183,14 @@ function getRouteLabel(pathname: string) {
   if (pathname === "/") {
     return "landing page";
   }
-  if (pathname === "/auth") {
+  if (pathname === "/login" || pathname === "/auth") {
     return "user authentication page";
   }
   if (pathname === "/admin/login") {
     return "admin login page";
+  }
+  if (pathname === "/super-admin/login") {
+    return "super admin login page";
   }
   if (pathname.startsWith("/app/dashboard") || pathname === "/app") {
     return "user dashboard";
@@ -195,17 +213,38 @@ function getRouteLabel(pathname: string) {
   if (pathname.startsWith("/admin/users")) {
     return "admin user management page";
   }
-  if (pathname.startsWith("/admin/energy")) {
-    return "admin energy monitoring page";
+  if (pathname.startsWith("/admin/readings")) {
+    return "admin readings page";
   }
-  if (pathname.startsWith("/admin/purchases")) {
-    return "admin purchases page";
+  if (pathname.startsWith("/admin/wallets")) {
+    return "admin wallets page";
+  }
+  if (pathname.startsWith("/admin/bills")) {
+    return "admin bills page";
   }
   if (pathname.startsWith("/admin/logs")) {
     return "admin logs page";
   }
   if (pathname.startsWith("/admin/settings")) {
     return "admin settings page";
+  }
+  if (pathname.startsWith("/super-admin/dashboard") || pathname === "/super-admin") {
+    return "super admin dashboard";
+  }
+  if (pathname.startsWith("/super-admin/admins")) {
+    return "super admin admin-management page";
+  }
+  if (pathname.startsWith("/super-admin/users")) {
+    return "super admin user-management page";
+  }
+  if (pathname.startsWith("/super-admin/system")) {
+    return "super admin system page";
+  }
+  if (pathname.startsWith("/super-admin/logs")) {
+    return "super admin logs page";
+  }
+  if (pathname.startsWith("/super-admin/settings")) {
+    return "super admin settings page";
   }
   return `page ${pathname}`;
 }

@@ -56,11 +56,20 @@ export async function requireUser(authorization?: string) {
     });
   }
 
-  const client = createUserClient(authorization);
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+
+  if (!token) {
+    throw new Response(JSON.stringify({ error: "Missing bearer token." }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const client = createUserClient(`Bearer ${token}`);
   const {
     data: { user },
     error,
-  } = await client.auth.getUser();
+  } = await client.auth.getUser(token);
 
   if (error || !user) {
     throw new Response(JSON.stringify({ error: "Invalid or expired token." }), {

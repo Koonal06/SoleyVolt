@@ -29,6 +29,8 @@ import {
   type UserPortalSummaryRow,
   type WalletTransactionRow,
 } from "../../lib/supabase-data";
+import { useAppLanguage } from "../lib/language";
+import { getLanguageLocale, getStatusLabel, getUserPortalCopy } from "../lib/user-portal-copy";
 import { useAuth } from "../providers/AuthProvider";
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
@@ -40,8 +42,8 @@ function formatAmount(value: number) {
   return numberFormatter.format(value);
 }
 
-function formatRelativeDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+function formatRelativeDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -49,30 +51,33 @@ function formatRelativeDate(value: string) {
   }).format(new Date(value));
 }
 
-function buildChartData(readings: EnergyReadingRow[]) {
+function buildChartData(readings: EnergyReadingRow[], locale: string) {
   return [...readings]
     .reverse()
     .map((reading) => ({
-      day: new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(reading.reading_date)),
+      day: new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(new Date(reading.reading_date)),
       import: Number(reading.imported_kwh),
       export: Number(reading.exported_kwh),
     }));
 }
 
-function getTransactionLabel(tx: WalletTransactionRow) {
+function getTransactionLabel(tx: WalletTransactionRow, copy: ReturnType<typeof getUserPortalCopy>) {
   if (tx.transaction_type === "receive") {
-    return tx.description || "Incoming transfer";
+    return tx.description || copy.dashboard.incomingTransfer;
   }
 
   if (tx.transaction_type === "send") {
-    return tx.description || "Outgoing transfer";
+    return tx.description || copy.dashboard.outgoingTransfer;
   }
 
-  return tx.description || "Solar production reward";
+  return tx.description || copy.dashboard.solarReward;
 }
 
 export function Dashboard() {
-  const { userType } = useAuth();
+  const { profile, userType } = useAuth();
+  const language = useAppLanguage(profile?.language);
+  const copy = getUserPortalCopy(language);
+  const locale = getLanguageLocale(language);
   const [summary, setSummary] = useState<UserPortalSummaryRow | null>(null);
   const [transactions, setTransactions] = useState<WalletTransactionRow[]>([]);
   const [readings, setReadings] = useState<EnergyReadingRow[]>([]);
@@ -105,7 +110,7 @@ export function Dashboard() {
           return;
         }
 
-        setError(err instanceof Error ? err.message : "Unable to load dashboard data.");
+        setError(err instanceof Error ? err.message : copy.dashboard.loadError);
       } finally {
         if (active) {
           setIsLoading(false);
@@ -128,32 +133,33 @@ export function Dashboard() {
   const greenCoins = Number(summary?.green_coins ?? 0);
   const billEstimate = Number(summary?.bill_estimate ?? 0);
   const lastReading = readings[0];
-  const chartData = buildChartData(readings);
+  const chartData = buildChartData(readings, locale);
+  const showOnboardingState = !isLoading && !error && !summary && readings.length === 0 && transactions.length === 0;
 
   const stats =
     userType === "consumer"
       ? [
           {
             icon: Zap,
-            label: "Imported Energy",
+            label: copy.dashboard.importedEnergy,
             value: `${formatAmount(totalImported)} kWh`,
-            change: lastReading ? `${formatAmount(Number(lastReading.imported_kwh))} kWh latest import` : "No readings yet",
+            change: lastReading ? `${formatAmount(Number(lastReading.imported_kwh))} kWh ${copy.dashboard.latestImport}` : copy.dashboard.noReadingsYet,
             positive: false,
             color: "blue",
           },
           {
             icon: TriangleAlert,
-            label: "Red Coins",
+            label: copy.dashboard.redCoins,
             value: `${formatAmount(redCoins)} RC`,
-            change: "Consumption-linked bill obligation",
+            change: copy.dashboard.consumptionLinked,
             positive: false,
             color: "amber",
           },
           {
             icon: BadgeDollarSign,
-            label: "Bill Estimate",
+            label: copy.dashboard.billEstimate,
             value: `${formatAmount(billEstimate)} RC`,
-            change: `Green Coin reduction ${formatAmount(greenCoins)} GC`,
+            change: `${copy.dashboard.greenCoinReduction} ${formatAmount(greenCoins)} GC`,
             positive: true,
             color: "emerald",
           },
@@ -162,25 +168,25 @@ export function Dashboard() {
         ? [
             {
               icon: Sun,
-              label: "Exported Energy",
+              label: copy.dashboard.exportedEnergy,
               value: `${formatAmount(totalExported)} kWh`,
-              change: lastReading ? `+${formatAmount(Number(lastReading.tokens_earned))} YC latest reward` : "No readings yet",
+              change: lastReading ? `+${formatAmount(Number(lastReading.tokens_earned))} YC ${copy.dashboard.latestReward}` : copy.dashboard.noReadingsYet,
               positive: true,
               color: "amber",
             },
             {
               icon: Leaf,
-              label: "Yellow Coins Earned",
+              label: copy.dashboard.yellowCoinsEarned,
               value: `${formatAmount(yellowCoins)} YC`,
-              change: `Stored credits ${formatAmount(Number(summary?.lifetime_earned ?? 0))}`,
+              change: `${copy.dashboard.storedCredits} ${formatAmount(Number(summary?.lifetime_earned ?? 0))}`,
               positive: true,
               color: "emerald",
             },
             {
               icon: Wallet,
-              label: "Wallet Balance",
+              label: copy.dashboard.walletBalance,
               value: `${formatAmount(Number(summary?.balance ?? 0))} SLT`,
-              change: `Lifetime earned ${formatAmount(Number(summary?.lifetime_earned ?? 0))}`,
+              change: `${copy.dashboard.lifetimeEarned} ${formatAmount(Number(summary?.lifetime_earned ?? 0))}`,
               positive: true,
               color: "blue",
             },
@@ -188,25 +194,25 @@ export function Dashboard() {
         : [
             {
               icon: Zap,
-              label: "Imported Energy",
+              label: copy.dashboard.importedEnergy,
               value: `${formatAmount(totalImported)} kWh`,
-              change: "Consumption pressure",
+              change: copy.dashboard.consumptionPressure,
               positive: false,
               color: "blue",
             },
             {
               icon: Sun,
-              label: "Exported Energy",
+              label: copy.dashboard.exportedEnergy,
               value: `${formatAmount(totalExported)} kWh`,
-              change: `Yellow Coins ${formatAmount(yellowCoins)} YC`,
+              change: `${copy.dashboard.yellowCoins} ${formatAmount(yellowCoins)} YC`,
               positive: true,
               color: "amber",
             },
             {
               icon: Wallet,
-              label: "Net Energy",
+              label: copy.dashboard.netEnergy,
               value: `${formatAmount(netEnergy)} kWh`,
-              change: `Bill estimate ${formatAmount(billEstimate)} RC`,
+              change: `${copy.dashboard.billEstimate} ${formatAmount(billEstimate)} RC`,
               positive: netEnergy >= 0,
               color: "emerald",
             },
@@ -214,24 +220,30 @@ export function Dashboard() {
 
   const chartTitle =
     userType === "consumer"
-      ? "Consumption trend"
+      ? copy.dashboard.chartConsumer
       : userType === "producer"
-        ? "Production trend"
-        : "Import vs export balance";
+        ? copy.dashboard.chartProducer
+        : copy.dashboard.chartProsumer;
   const showExportLine = userType !== "consumer";
   const showImportLine = userType !== "producer";
   const summaryTitle =
     userType === "consumer"
-      ? "Bill reduction summary"
+      ? copy.dashboard.summaryConsumer
       : userType === "producer"
-        ? "Stored production credits"
-        : "Net energy and coin summary";
+        ? copy.dashboard.summaryProducer
+        : copy.dashboard.summaryProsumer;
 
   return (
     <div className="space-y-8">
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {error}
+        </div>
+      )}
+
+      {showOnboardingState && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
+          {copy.dashboard.onboarding}
         </div>
       )}
 
@@ -279,13 +291,13 @@ export function Dashboard() {
               <YAxis stroke="#6b7280" />
               <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
               <Legend />
-              {showImportLine ? <Line type="monotone" dataKey="import" stroke="#1e3a8a" strokeWidth={2} name="Import (kWh)" /> : null}
-              {showExportLine ? <Line type="monotone" dataKey="export" stroke="#fbbf24" strokeWidth={2} name="Export (kWh)" /> : null}
+              {showImportLine ? <Line type="monotone" dataKey="import" stroke="#1e3a8a" strokeWidth={2} name={copy.dashboard.importedEnergyLine} /> : null}
+              {showExportLine ? <Line type="monotone" dataKey="export" stroke="#fbbf24" strokeWidth={2} name={copy.dashboard.exportedEnergyLine} /> : null}
             </LineChart>
           </ResponsiveContainer>
         ) : (
           <p className="text-sm text-gray-600">
-            {isLoading ? "Loading energy readings..." : "No energy readings yet. Add readings in Supabase to see your live chart."}
+            {isLoading ? copy.dashboard.loadingReadings : copy.dashboard.noReadings}
           </p>
         )}
       </div>
@@ -294,33 +306,33 @@ export function Dashboard() {
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-blue-900">{summaryTitle}</h3>
           <div className="space-y-3 text-sm text-gray-600">
-            <p>Imported energy: {formatAmount(totalImported)} kWh</p>
-            <p>Exported energy: {formatAmount(totalExported)} kWh</p>
-            <p>Red Coins: {formatAmount(redCoins)} RC</p>
-            <p>Yellow Coins: {formatAmount(yellowCoins)} YC</p>
-            <p>Green Coin option: {formatAmount(greenCoins)} GC</p>
+            <p>{copy.dashboard.importedEnergyLabel}: {formatAmount(totalImported)} kWh</p>
+            <p>{copy.dashboard.exportedEnergyLabel}: {formatAmount(totalExported)} kWh</p>
+            <p>{copy.dashboard.redCoins}: {formatAmount(redCoins)} RC</p>
+            <p>{copy.dashboard.yellowCoins}: {formatAmount(yellowCoins)} YC</p>
+            <p>{copy.dashboard.greenCoinOption}: {formatAmount(greenCoins)} GC</p>
           </div>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-blue-900">
-            {userType === "producer" ? "Producer guidance" : userType === "consumer" ? "Consumer guidance" : "Prosumer guidance"}
+            {userType === "producer" ? copy.dashboard.guidanceProducer : userType === "consumer" ? copy.dashboard.guidanceConsumer : copy.dashboard.guidanceProsumer}
           </h3>
           <div className="space-y-3 text-sm text-gray-600">
             {userType === "producer" ? (
               <>
-                <p>Production rewards are highlighted first so you can track surplus export performance.</p>
-                <p>Bill-oriented consumption widgets are intentionally de-emphasized here.</p>
+                <p>{copy.dashboard.guidanceProducerA}</p>
+                <p>{copy.dashboard.guidanceProducerB}</p>
               </>
             ) : userType === "consumer" ? (
               <>
-                <p>Your dashboard focuses on imported energy, Red Coin obligation, and bill reduction tools.</p>
-                <p>Production charts are minimized because they are not central to a consumer flow.</p>
+                <p>{copy.dashboard.guidanceConsumerA}</p>
+                <p>{copy.dashboard.guidanceConsumerB}</p>
               </>
             ) : (
               <>
-                <p>Your dashboard balances both sides of the energy profile so you can see obligation and rewards together.</p>
-                <p>This is the fullest portal mode, combining billing, credits, and net energy position.</p>
+                <p>{copy.dashboard.guidanceProsumerA}</p>
+                <p>{copy.dashboard.guidanceProsumerB}</p>
               </>
             )}
           </div>
@@ -329,10 +341,10 @@ export function Dashboard() {
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center justify-between">
-          <h3 className="text-blue-900">{userType === "producer" ? "Production and wallet activity" : "Transaction and activity history"}</h3>
+          <h3 className="text-blue-900">{userType === "producer" ? copy.dashboard.activityProducer : copy.dashboard.activityDefault}</h3>
           <div className="flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-1.5 text-sm text-emerald-700">
             <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-            Live backend data
+            {copy.dashboard.liveBackendData}
           </div>
         </div>
         <div className="space-y-4">
@@ -358,8 +370,8 @@ export function Dashboard() {
                     )}
                   </div>
                   <div>
-                    <p className="text-blue-900">{getTransactionLabel(tx)}</p>
-                    <p className="text-sm text-gray-500">{formatRelativeDate(tx.created_at)}</p>
+                    <p className="text-blue-900">{getTransactionLabel(tx, copy)}</p>
+                    <p className="text-sm text-gray-500">{formatRelativeDate(tx.created_at, locale)}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -367,13 +379,13 @@ export function Dashboard() {
                     {tx.amount >= 0 ? "+" : ""}
                     {formatAmount(Number(tx.amount))} SLT
                   </p>
-                  <p className="text-xs capitalize text-gray-500">{tx.status}</p>
+                  <p className="text-xs capitalize text-gray-500">{getStatusLabel(language, tx.status)}</p>
                 </div>
               </div>
             ))
           ) : (
             <p className="text-sm text-gray-600">
-              {isLoading ? "Loading transactions..." : "No transactions yet."}
+              {isLoading ? copy.dashboard.loadingTransactions : copy.dashboard.noTransactions}
             </p>
           )}
         </div>

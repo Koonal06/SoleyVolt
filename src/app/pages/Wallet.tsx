@@ -8,11 +8,16 @@ import {
   Sun,
 } from "lucide-react";
 import {
+  getMyPortalSummary,
   getMyTransactions,
   getMyWallet,
+  type UserPortalSummaryRow,
   type WalletRow,
   type WalletTransactionRow,
 } from "../../lib/supabase-data";
+import { supabase } from "../../lib/supabase";
+import { useAppLanguage } from "../lib/language";
+import { getLanguageLocale, getStatusLabel, getUserPortalCopy } from "../lib/user-portal-copy";
 import { useAuth } from "../providers/AuthProvider";
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
@@ -24,57 +29,160 @@ function formatAmount(value: number) {
   return numberFormatter.format(value);
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: string) {
   const date = new Date(value);
 
   return {
-    date: new Intl.DateTimeFormat("en", { year: "numeric", month: "short", day: "numeric" }).format(date),
-    time: new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(date),
+    date: new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric" }).format(date),
+    time: new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(date),
   };
 }
 
 export function Wallet() {
-  const { userType } = useAuth();
+  const { profile, user, userType } = useAuth();
+  const language = useAppLanguage(profile?.language);
+  const copy = getUserPortalCopy(language);
+  const locale = getLanguageLocale(language);
   const [wallet, setWallet] = useState<WalletRow | null>(null);
+  const [summary, setSummary] = useState<UserPortalSummaryRow | null>(null);
   const [transactions, setTransactions] = useState<WalletTransactionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    let refreshTimeout = 0;
 
-    async function loadWallet() {
+    async function loadWallet(showSpinner: boolean) {
       try {
-        setIsLoading(true);
-        setError(null);
+        if (showSpinner) {
+          setIsLoading(true);
+          setError(null);
+        }
 
-        const [walletData, transactionData] = await Promise.all([getMyWallet(), getMyTransactions(20)]);
+        const [walletData, summaryData, transactionData] = await Promise.all([
+          getMyWallet(),
+          getMyPortalSummary(),
+          getMyTransactions(20),
+        ]);
 
         if (!active) {
           return;
         }
 
         setWallet(walletData);
+        setSummary(summaryData);
         setTransactions(transactionData);
+        setError(null);
       } catch (err) {
         if (!active) {
           return;
         }
 
-        setError(err instanceof Error ? err.message : "Unable to load wallet data.");
+        if (showSpinner) {
+          setError(err instanceof Error ? err.message : copy.wallet.loadError);
+        }
       } finally {
-        if (active) {
+        if (active && showSpinner) {
           setIsLoading(false);
         }
       }
     }
 
-    loadWallet();
+    if (!user?.id) {
+      setWallet(null);
+      setSummary(null);
+      setTransactions([]);
+      setIsLoading(false);
+
+      return () => {
+        active = false;
+      };
+    }
+
+    void loadWallet(true);
+
+    if (!supabase) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimeout);
+      refreshTimeout = window.setTimeout(() => {
+        if (!active) {
+          return;
+        }
+
+        void loadWallet(false);
+      }, 150);
+    };
+
+    const channel = supabase
+      .channel(`wallet-live-${user.id}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wallets",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (!active) {
+            return;
+          }
+
+          if (payload.eventType === "DELETE") {
+            setWallet(null);
+          } else {
+            setWallet(payload.new as WalletRow);
+          }
+
+          scheduleRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wallet_transactions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          if (!active) {
+            return;
+          }
+
+          scheduleRefresh();
+        },
+      )
+      .subscribe();
 
     return () => {
       active = false;
+      window.clearTimeout(refreshTimeout);
+      void channel.unsubscribe();
     };
-  }, []);
+  }, [copy.wallet.loadError, user?.id]);
+
+  const yellowDisplay = Math.max(
+    Number(wallet?.yellow_token ?? 0),
+    Number(summary?.yellow_coins ?? 0),
+  );
+  const redDisplay = Math.max(
+    Number(wallet?.red_token ?? 0),
+    Number(summary?.red_coins ?? 0),
+  );
+  const greenDisplay = Math.max(
+    Number(wallet?.green_token ?? 0),
+    Number(summary?.green_coins ?? 0),
+  );
+  const balanceDisplay = Number(
+    wallet?.balance ?? summary?.balance ?? Math.max(yellowDisplay + greenDisplay - redDisplay, 0),
+  );
 
   return (
     <div className="space-y-8">
@@ -88,57 +196,74 @@ export function Wallet() {
         <div className="mb-6 flex items-center gap-2">
           <WalletIcon className="h-8 w-8" />
           <span className="text-xl">
-            {userType === "producer" ? "Stored Credits" : userType === "consumer" ? "Bill Offset Wallet" : "Hybrid Energy Wallet"}
+            {userType === "producer" ? copy.wallet.storedCredits : userType === "consumer" ? copy.wallet.billOffsetWallet : copy.wallet.hybridWallet}
           </span>
         </div>
         <div className="mb-8">
-          <h1 className="mb-2">{isLoading ? "Loading..." : `${formatAmount(Number(wallet?.balance ?? 0))} SLT`}</h1>
+          <h1 className="mb-2">{isLoading ? copy.wallet.loading : `${formatAmount(balanceDisplay)} SLT`}</h1>
           <p className="text-amber-100">
-            {userType === "producer" ? "Stored production credits" : userType === "consumer" ? "Available bill-offset balance" : "Combined settlement balance"}
+            {userType === "producer" ? copy.wallet.storedProductionCredits : userType === "consumer" ? copy.wallet.availableBillOffset : copy.wallet.combinedSettlementBalance}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-6">
           <div className="rounded-xl bg-white/20 p-4 backdrop-blur-sm">
             <div className="mb-2 flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              <span className="text-sm">Earned</span>
+              <span className="text-sm">{copy.wallet.earned}</span>
             </div>
             <p className="text-xl">{formatAmount(Number(wallet?.lifetime_earned ?? 0))} SLT</p>
           </div>
           <div className="rounded-xl bg-white/20 p-4 backdrop-blur-sm">
             <div className="mb-2 flex items-center gap-2">
               <TrendingDown className="h-5 w-5" />
-              <span className="text-sm">Spent</span>
+              <span className="text-sm">{copy.wallet.spent}</span>
             </div>
             <p className="text-xl">{formatAmount(Number(wallet?.lifetime_spent ?? 0))} SLT</p>
+          </div>
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl bg-white/16 p-4 backdrop-blur-sm">
+            <p className="text-sm text-amber-50/85">Yellow Tokens</p>
+            <p className="mt-2 text-2xl font-semibold">{formatAmount(yellowDisplay)} YC</p>
+            <p className="mt-1 text-sm text-amber-50/75">Earned from surplus export after pipeline promotion.</p>
+          </div>
+          <div className="rounded-xl bg-white/16 p-4 backdrop-blur-sm">
+            <p className="text-sm text-amber-50/85">Red Tokens</p>
+            <p className="mt-2 text-2xl font-semibold">{formatAmount(redDisplay)} RC</p>
+            <p className="mt-1 text-sm text-amber-50/75">Consumption obligation tracked separately from earned credits.</p>
+          </div>
+          <div className="rounded-xl bg-white/16 p-4 backdrop-blur-sm">
+            <p className="text-sm text-amber-50/85">Green Tokens</p>
+            <p className="mt-2 text-2xl font-semibold">{formatAmount(greenDisplay)} GC</p>
+            <p className="mt-1 text-sm text-amber-50/75">Purchased bill-offset credits available for settlement.</p>
           </div>
         </div>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center justify-between">
-          <h3 className="text-blue-900">Transaction History</h3>
+          <h3 className="text-blue-900">{copy.wallet.transactionHistory}</h3>
           <div className="flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-1.5 text-sm text-emerald-700">
             <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-            Live backend data
+            {copy.wallet.liveBackendData}
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="px-4 py-3 text-left text-sm text-gray-600">Type</th>
-                <th className="px-4 py-3 text-left text-sm text-gray-600">Description</th>
-                <th className="px-4 py-3 text-left text-sm text-gray-600">Date</th>
-                <th className="px-4 py-3 text-left text-sm text-gray-600">Time</th>
-                <th className="px-4 py-3 text-right text-sm text-gray-600">Amount</th>
-                <th className="px-4 py-3 text-right text-sm text-gray-600">Status</th>
+                <th className="px-4 py-3 text-left text-sm text-gray-600">{copy.wallet.type}</th>
+                <th className="px-4 py-3 text-left text-sm text-gray-600">{copy.wallet.description}</th>
+                <th className="px-4 py-3 text-left text-sm text-gray-600">{copy.wallet.date}</th>
+                <th className="px-4 py-3 text-left text-sm text-gray-600">{copy.wallet.time}</th>
+                <th className="px-4 py-3 text-right text-sm text-gray-600">{copy.wallet.amount}</th>
+                <th className="px-4 py-3 text-right text-sm text-gray-600">{copy.wallet.status}</th>
               </tr>
             </thead>
             <tbody>
               {transactions.length > 0 ? (
                 transactions.map((tx) => {
-                  const formatted = formatDate(tx.created_at);
+                  const formatted = formatDate(tx.created_at, locale);
 
                   return (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -170,7 +295,7 @@ export function Wallet() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm capitalize text-emerald-700">
-                          {tx.status}
+                          {getStatusLabel(language, tx.status)}
                         </span>
                       </td>
                     </tr>
@@ -179,7 +304,7 @@ export function Wallet() {
               ) : (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-600">
-                    {isLoading ? "Loading transactions..." : "No wallet activity yet."}
+                    {isLoading ? copy.wallet.loadingTransactions : copy.wallet.noWalletActivity}
                   </td>
                 </tr>
               )}

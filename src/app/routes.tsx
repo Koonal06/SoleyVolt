@@ -1,23 +1,30 @@
 import { createBrowserRouter, isRouteErrorResponse, Link, Navigate, useLocation, useRouteError } from "react-router";
-import { AdminProtectedRoute, AdminRoute, ProtectedRoute, PublicOnlyRoute, UserRoute } from "./components/AuthGate";
+import { AdminRoute, ProtectedRoute, PublicOnlyRoute, SuperAdminRoute, UserRoute } from "./components/AuthGate";
 import { LandingPage } from "./pages/LandingPage";
 import { AuthPage } from "./pages/AuthPage";
 import { AdminAuthPage } from "./pages/AdminAuthPage";
+import { SuperAdminAuthPage } from "./pages/SuperAdminAuthPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { ApplyNowPage } from "./pages/ApplyNowPage";
 import { UserPortalLayout } from "./layouts/UserPortalLayout";
 import { AdminPortalLayout } from "./layouts/AdminPortalLayout";
+import { SuperAdminPortalLayout } from "./layouts/SuperAdminPortalLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { Wallet } from "./pages/Wallet";
 import { BillPage } from "./pages/BillPage";
+import { CoinMarketplacePage } from "./pages/CoinMarketplacePage";
 import { Settings } from "./pages/Settings";
 import { TransactionHistory } from "./pages/TransactionHistory";
+import { Transfer } from "./pages/Transfer";
 import { SystemDashboard } from "./pages/SystemDashboard";
 import { UserManagement } from "./pages/UserManagement";
-import { EnergyMonitoring } from "./pages/EnergyMonitoring";
-import { PurchasesPage } from "./pages/PurchasesPage";
 import { AdminLogsPage } from "./pages/AdminLogsPage";
 import { AdminSettingsPage } from "./pages/AdminSettingsPage";
-import { SupabaseTestPage } from "./pages/SupabaseTestPage";
+import { EnergyPipelineAdminPage } from "./pages/EnergyPipelineAdminPage";
+import { AdminWalletsPage } from "./pages/AdminWalletsPage";
+import { AdminBillsPage } from "./pages/AdminBillsPage";
+import { SuperAdminAdminsPage } from "./pages/SuperAdminAdminsPage";
+import { AdminApplicationsPage } from "./pages/AdminApplicationsPage";
 
 function normalizePathname(pathname: string) {
   const normalized = pathname.replace(/\/{2,}/g, "/");
@@ -54,7 +61,7 @@ function RouteErrorBoundary() {
             Return Home
           </Link>
           <Link
-            to="/auth"
+            to="/login"
             className="rounded-full border border-white/15 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
           >
             Open Login
@@ -88,11 +95,18 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   },
   {
+    path: "/apply",
+    Component: ApplyNowPage,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
     Component: PublicOnlyRoute,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { path: "/auth", Component: AuthPage },
+      { path: "/login", Component: AuthPage },
+      { path: "/auth", element: <Navigate to="/login" replace /> },
       { path: "/admin/login", Component: AdminAuthPage },
+      { path: "/super-admin/login", Component: SuperAdminAuthPage },
     ],
   },
   {
@@ -111,36 +125,54 @@ export const router = createBrowserRouter([
               { index: true, Component: Dashboard },
               { path: "dashboard", Component: Dashboard },
               { path: "wallet", Component: Wallet },
+              { path: "transfer", Component: Transfer },
               { path: "bill", Component: BillPage },
+              { path: "market", Component: CoinMarketplacePage },
               { path: "history", Component: TransactionHistory },
-              { path: "supabase-test", Component: SupabaseTestPage },
               { path: "settings", Component: Settings },
             ],
           },
         ],
       },
       {
-        Component: AdminProtectedRoute,
+        Component: AdminRoute,
         errorElement: <RouteErrorBoundary />,
         children: [
           {
-            Component: AdminRoute,
+            path: "/admin",
+            Component: AdminPortalLayout,
             errorElement: <RouteErrorBoundary />,
             children: [
-              {
-                path: "/admin",
-                Component: AdminPortalLayout,
-                errorElement: <RouteErrorBoundary />,
-                children: [
-                  { index: true, Component: SystemDashboard },
-                  { path: "dashboard", Component: SystemDashboard },
-                  { path: "users", Component: UserManagement },
-                  { path: "energy", Component: EnergyMonitoring },
-                  { path: "purchases", Component: PurchasesPage },
-                  { path: "logs", Component: AdminLogsPage },
-                  { path: "settings", Component: AdminSettingsPage },
-                ],
-              },
+              { index: true, Component: SystemDashboard },
+              { path: "dashboard", Component: SystemDashboard },
+              { path: "applications", Component: AdminApplicationsPage },
+              { path: "users", Component: UserManagement },
+              { path: "readings", Component: EnergyPipelineAdminPage },
+              { path: "wallets", Component: AdminWalletsPage },
+              { path: "bills", Component: AdminBillsPage },
+              { path: "logs", Component: AdminLogsPage },
+              { path: "settings", Component: AdminSettingsPage },
+            ],
+          },
+        ],
+      },
+      {
+        Component: SuperAdminRoute,
+        errorElement: <RouteErrorBoundary />,
+        children: [
+          {
+            path: "/super-admin",
+            Component: SuperAdminPortalLayout,
+            errorElement: <RouteErrorBoundary />,
+            children: [
+              { index: true, Component: SystemDashboard },
+              { path: "dashboard", Component: SystemDashboard },
+              { path: "admins", Component: SuperAdminAdminsPage },
+              { path: "users", Component: UserManagement },
+              { path: "applications", Component: AdminApplicationsPage },
+              { path: "system", Component: EnergyPipelineAdminPage },
+              { path: "logs", Component: AdminLogsPage },
+              { path: "settings", Component: AdminSettingsPage },
             ],
           },
         ],

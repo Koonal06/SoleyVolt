@@ -7,6 +7,8 @@ import {
   type PublicUserRow,
   type WalletRow,
 } from "../../lib/supabase-data";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../providers/AuthProvider";
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 0,
@@ -18,6 +20,7 @@ function formatAmount(value: number) {
 }
 
 export function Transfer() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<PublicUserRow | null>(null);
   const [results, setResults] = useState<PublicUserRow[]>([]);
@@ -31,23 +34,99 @@ export function Transfer() {
 
   useEffect(() => {
     let active = true;
+    let refreshTimeout = 0;
 
-    getMyWallet()
-      .then((data) => {
-        if (active) {
-          setWallet(data);
+    async function loadWalletBalance() {
+      try {
+        const data = await getMyWallet();
+
+        if (!active) {
+          return;
         }
-      })
-      .catch((err) => {
+
+        setWallet(data);
+        setErrorMessage("");
+      } catch (err) {
         if (active) {
           setErrorMessage(err instanceof Error ? err.message : "Unable to load wallet balance.");
         }
-      });
+      }
+    }
+
+    if (!user?.id) {
+      setWallet(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void loadWalletBalance();
+
+    if (!supabase) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimeout);
+      refreshTimeout = window.setTimeout(() => {
+        if (!active) {
+          return;
+        }
+
+        void loadWalletBalance();
+      }, 150);
+    };
+
+    const channel = supabase
+      .channel(`transfer-wallet-live-${user.id}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wallets",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (!active) {
+            return;
+          }
+
+          if (payload.eventType === "DELETE") {
+            setWallet(null);
+          } else {
+            setWallet(payload.new as WalletRow);
+          }
+
+          scheduleRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wallet_transactions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          if (!active) {
+            return;
+          }
+
+          scheduleRefresh();
+        },
+      )
+      .subscribe();
 
     return () => {
       active = false;
+      window.clearTimeout(refreshTimeout);
+      void channel.unsubscribe();
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -246,7 +325,7 @@ export function Transfer() {
         <ul className="space-y-2 text-sm text-blue-800">
           <li>Transfers run through the live `transfer_tokens` backend RPC.</li>
           <li>Insufficient balance and invalid receiver errors come directly from Supabase.</li>
-          <li>Completed transfers appear in wallet history for both users.</li>
+          <li>Sender and receiver balances refresh automatically when their wallet activity changes.</li>
           <li>You can send only to registered SoleyVolt users returned by the public directory.</li>
         </ul>
       </div>

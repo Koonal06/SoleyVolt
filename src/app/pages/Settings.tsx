@@ -8,7 +8,8 @@ import {
   updateMyProfile,
   updateMySettings,
 } from "../../lib/supabase-data";
-import { getStoredLanguage, setStoredLanguage } from "../lib/language";
+import { getStoredLanguage, setStoredLanguage, useAppLanguage } from "../lib/language";
+import { getUserPortalCopy } from "../lib/user-portal-copy";
 
 type ProfileForm = {
   name: string;
@@ -23,7 +24,9 @@ type NotificationForm = {
 };
 
 export function Settings() {
-  const { user, userType } = useAuth();
+  const { profile: authProfile, patchProfile, user, userType } = useAuth();
+  const language = useAppLanguage(authProfile?.language);
+  const copy = getUserPortalCopy(language);
   const [lang, setLang] = useState<"en" | "fr" | "cr">(() => getStoredLanguage());
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [notifications, setNotifications] = useState<NotificationForm>({
@@ -76,7 +79,7 @@ export function Settings() {
           return;
         }
 
-        setErrorMessage(err instanceof Error ? err.message : "Unable to load settings.");
+        setErrorMessage(err instanceof Error ? err.message : copy.settings.loadError);
       } finally {
         if (active) {
           setIsLoading(false);
@@ -106,6 +109,11 @@ export function Settings() {
         phone: profile.phone.trim() || null,
       });
 
+      patchProfile({
+        full_name: profile.name.trim() || null,
+        phone: profile.phone.trim() || null,
+      });
+
       if (profile.email !== (user?.email ?? "")) {
         const { error } = await supabase!.auth.updateUser({ email: profile.email.trim() });
 
@@ -114,9 +122,9 @@ export function Settings() {
         }
       }
 
-      setStatusMessage("Profile updated successfully.");
+      setStatusMessage(copy.settings.profileUpdated);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Unable to save profile.");
+      setErrorMessage(err instanceof Error ? err.message : copy.settings.profileSaveError);
     } finally {
       setIsSavingProfile(false);
     }
@@ -137,11 +145,12 @@ export function Settings() {
         }),
       ]);
 
+      patchProfile({ language: lang });
       setStoredLanguage(lang);
 
-      setStatusMessage("Preferences saved successfully.");
+      setStatusMessage(copy.settings.preferencesSaved);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Unable to save preferences.");
+      setErrorMessage(err instanceof Error ? err.message : copy.settings.preferencesSaveError);
     } finally {
       setIsSavingPreferences(false);
     }
@@ -149,12 +158,12 @@ export function Settings() {
 
   const handlePasswordUpdate = async () => {
     if (!password) {
-      setErrorMessage("Enter a new password.");
+      setErrorMessage(copy.settings.passwordRequired);
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("New password and confirmation do not match.");
+      setErrorMessage(copy.settings.passwordMismatch);
       return;
     }
 
@@ -170,9 +179,9 @@ export function Settings() {
 
       setPassword("");
       setConfirmPassword("");
-      setStatusMessage("Password updated successfully.");
+      setStatusMessage(copy.settings.passwordUpdated);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Unable to update password.");
+      setErrorMessage(err instanceof Error ? err.message : copy.settings.passwordUpdateError);
     } finally {
       setIsSavingPassword(false);
     }
@@ -195,14 +204,14 @@ export function Settings() {
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <User className="h-6 w-6 text-amber-500" />
-          <h3 className="text-blue-900">Profile Information</h3>
+          <h3 className="text-blue-900">{copy.settings.profileInformation}</h3>
         </div>
         <div className="space-y-4">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Current user type: <span className="font-medium capitalize">{userType ?? "prosumer"}</span>
+            {copy.settings.currentUserType}: <span className="font-medium capitalize">{userType ?? "prosumer"}</span>
           </div>
           <div>
-            <label className="mb-2 block text-blue-900">Full Name</label>
+            <label className="mb-2 block text-blue-900">{copy.settings.fullName}</label>
             <input
               type="text"
               value={profile.name}
@@ -212,7 +221,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="mb-2 block text-blue-900">Email</label>
+            <label className="mb-2 block text-blue-900">{copy.settings.email}</label>
             <input
               type="email"
               value={profile.email}
@@ -222,7 +231,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="mb-2 block text-blue-900">Phone Number</label>
+            <label className="mb-2 block text-blue-900">{copy.settings.phoneNumber}</label>
             <input
               type="tel"
               value={profile.phone}
@@ -236,7 +245,7 @@ export function Settings() {
             disabled={isLoading || isSavingProfile}
             className="rounded-lg bg-amber-500 px-6 py-2 text-blue-900 hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
           >
-            {isSavingProfile ? "Saving..." : "Save Changes"}
+            {isSavingProfile ? copy.settings.saving : copy.settings.saveChanges}
           </button>
         </div>
       </div>
@@ -244,29 +253,29 @@ export function Settings() {
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <Lock className="h-6 w-6 text-amber-500" />
-          <h3 className="text-blue-900">Security</h3>
+          <h3 className="text-blue-900">{copy.settings.security}</h3>
         </div>
         <div className="space-y-6">
           <div>
-            <h4 className="mb-4 text-blue-900">Change Password</h4>
+            <h4 className="mb-4 text-blue-900">{copy.settings.changePassword}</h4>
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-blue-900">New Password</label>
+                <label className="mb-2 block text-blue-900">{copy.settings.newPassword}</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter a new password"
+                  placeholder={copy.settings.enterNewPassword}
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-blue-900">Confirm New Password</label>
+                <label className="mb-2 block text-blue-900">{copy.settings.confirmNewPassword}</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your new password"
+                  placeholder={copy.settings.reenterPassword}
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
@@ -275,7 +284,7 @@ export function Settings() {
                 disabled={isSavingPassword}
                 className="rounded-lg bg-blue-900 px-6 py-2 text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-gray-400"
               >
-                {isSavingPassword ? "Updating..." : "Update Password"}
+                {isSavingPassword ? copy.settings.updating : copy.settings.updatePassword}
               </button>
             </div>
           </div>
@@ -285,8 +294,8 @@ export function Settings() {
               <div className="flex items-center gap-3">
                 <Shield className="h-5 w-5 text-emerald-600" />
                 <div>
-                  <h4 className="text-blue-900">Two-Factor Authentication</h4>
-                  <p className="text-sm text-gray-600">Store your MFA preference in the backend settings record</p>
+                  <h4 className="text-blue-900">{copy.settings.twoFactor}</h4>
+                  <p className="text-sm text-gray-600">{copy.settings.twoFactorDesc}</p>
                 </div>
               </div>
               <button
@@ -309,18 +318,18 @@ export function Settings() {
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <Globe className="h-6 w-6 text-amber-500" />
-          <h3 className="text-blue-900">Language Preferences</h3>
+          <h3 className="text-blue-900">{copy.settings.languagePreferences}</h3>
         </div>
         <div>
-          <label className="mb-2 block text-blue-900">Select Language</label>
+          <label className="mb-2 block text-blue-900">{copy.settings.selectLanguage}</label>
           <select
             value={lang}
             onChange={(e) => setLang(e.target.value as "en" | "fr" | "cr")}
             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
-            <option value="en">English</option>
-            <option value="fr">Francais</option>
-            <option value="cr">Kreol</option>
+            <option value="en">{copy.settings.english}</option>
+            <option value="fr">{copy.settings.french}</option>
+            <option value="cr">{copy.settings.kreol}</option>
           </select>
         </div>
       </div>
@@ -328,13 +337,13 @@ export function Settings() {
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <Bell className="h-6 w-6 text-amber-500" />
-          <h3 className="text-blue-900">Notifications</h3>
+          <h3 className="text-blue-900">{copy.settings.notifications}</h3>
         </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-gray-100 py-3">
             <div>
-              <h4 className="text-blue-900">Email Notifications</h4>
-              <p className="text-sm text-gray-600">Receive updates via email</p>
+              <h4 className="text-blue-900">{copy.settings.emailNotifications}</h4>
+              <p className="text-sm text-gray-600">{copy.settings.emailNotificationsDesc}</p>
             </div>
             <button
               onClick={() => setNotifications({ ...notifications, email: !notifications.email })}
@@ -352,8 +361,8 @@ export function Settings() {
 
           <div className="flex items-center justify-between border-b border-gray-100 py-3">
             <div>
-              <h4 className="text-blue-900">Push Notifications</h4>
-              <p className="text-sm text-gray-600">Receive push notifications on your device</p>
+              <h4 className="text-blue-900">{copy.settings.pushNotifications}</h4>
+              <p className="text-sm text-gray-600">{copy.settings.pushNotificationsDesc}</p>
             </div>
             <button
               onClick={() => setNotifications({ ...notifications, push: !notifications.push })}
@@ -371,8 +380,8 @@ export function Settings() {
 
           <div className="flex items-center justify-between py-3">
             <div>
-              <h4 className="text-blue-900">Transaction Alerts</h4>
-              <p className="text-sm text-gray-600">Get notified for all transactions</p>
+              <h4 className="text-blue-900">{copy.settings.transactionAlerts}</h4>
+              <p className="text-sm text-gray-600">{copy.settings.transactionAlertsDesc}</p>
             </div>
             <button
               onClick={() => setNotifications({ ...notifications, transactions: !notifications.transactions })}
@@ -393,7 +402,7 @@ export function Settings() {
             disabled={isLoading || isSavingPreferences}
             className="rounded-lg bg-amber-500 px-6 py-2 text-blue-900 hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
           >
-            {isSavingPreferences ? "Saving..." : "Save Preferences"}
+            {isSavingPreferences ? copy.settings.saving : copy.settings.savePreferences}
           </button>
         </div>
       </div>

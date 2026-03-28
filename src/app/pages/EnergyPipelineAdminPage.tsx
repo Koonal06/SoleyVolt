@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Bot, CheckCircle2, Link2, RefreshCcw } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, Link2, Play, RefreshCcw } from "lucide-react";
 import {
   type AdminProfileOptionRow,
   type DatasetUserMappingRow,
   type EnergyImportAdminRow,
 } from "../../lib/supabase-data";
-import { getEnergyPipelineSnapshot, saveDatasetUserMapping, type EnergyPipelineRun } from "../../lib/server-api";
+import {
+  getEnergyPipelineSnapshot,
+  runEnergyPipelineNow,
+  saveDatasetUserMapping,
+  type EnergyPipelineRun,
+} from "../../lib/server-api";
 
 function formatAmount(value: number | null | undefined, digits = 2) {
   const numeric = Number(value ?? 0);
@@ -37,22 +42,43 @@ export function EnergyPipelineAdminPage() {
   const [selection, setSelection] = useState<MappingSelection>({});
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isRunningPipeline, setIsRunningPipeline] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const applySnapshot = ({
+    imports: importRows,
+    mappings: mappingRows,
+    profiles: profileRows,
+    latestRun: latestRunData,
+  }: {
+    imports: EnergyImportAdminRow[];
+    mappings: DatasetUserMappingRow[];
+    profiles: AdminProfileOptionRow[];
+    latestRun: EnergyPipelineRun | null;
+  }) => {
+    setImports(importRows);
+    setMappings(mappingRows);
+    setProfiles(profileRows);
+    setLatestRun(latestRunData);
+    setError(null);
+  };
+
+  const loadSnapshot = async () => {
+    const snapshot = await getEnergyPipelineSnapshot();
+    applySnapshot(snapshot);
+    return snapshot;
+  };
 
   useEffect(() => {
     let active = true;
 
-    getEnergyPipelineSnapshot()
-      .then(({ imports: importRows, mappings: mappingRows, profiles: profileRows, latestRun: latestRunData }) => {
+    loadSnapshot()
+      .then((snapshot) => {
         if (!active) {
           return;
         }
 
-        setImports(importRows);
-        setMappings(mappingRows);
-        setProfiles(profileRows);
-        setLatestRun(latestRunData);
-        setError(null);
+        applySnapshot(snapshot);
       })
       .catch((err) => {
         if (active) {
@@ -121,18 +147,34 @@ export function EnergyPipelineAdminPage() {
   const handleRefresh = () => {
     setStatusMessage(null);
     startTransition(() => {
-      getEnergyPipelineSnapshot()
-        .then(({ imports: importRows, mappings: mappingRows, profiles: profileRows, latestRun: latestRunData }) => {
-          setImports(importRows);
-          setMappings(mappingRows);
-          setProfiles(profileRows);
-          setLatestRun(latestRunData);
-          setError(null);
-        })
+      loadSnapshot()
         .catch((err) => {
           setError(err instanceof Error ? err.message : "Unable to refresh pipeline data.");
         });
     });
+  };
+
+  const handleRunPipeline = async () => {
+    setError(null);
+    setStatusMessage(null);
+    setIsRunningPipeline(true);
+
+    try {
+      const summary = await runEnergyPipelineNow({
+        limit: 100,
+        statuses: ["pending", "failed", "calculated"],
+        promote: true,
+        dryRun: false,
+      });
+      await loadSnapshot();
+      setStatusMessage(
+        `Legacy engine ran from the backend. Processed ${summary.processed_count} of ${summary.rows_considered} row(s), promoted ${summary.promoted_count}, failed ${summary.failed_count}.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to run the energy pipeline.");
+    } finally {
+      setIsRunningPipeline(false);
+    }
   };
 
   const handleMap = (entry: typeof groupedDatasetUsers[number]) => {
@@ -152,12 +194,8 @@ export function EnergyPipelineAdminPage() {
         notes: "Mapped from admin energy pipeline screen.",
       })
         .then(async () => {
-          const snapshot = await getEnergyPipelineSnapshot();
-          setImports(snapshot.imports);
-          setMappings(snapshot.mappings);
-          setProfiles(snapshot.profiles);
-          setLatestRun(snapshot.latestRun);
-          setStatusMessage(`Mapping saved for ${entry.datasetUserCode}. The Python energy pipeline can now calculate and promote this user's energy records.`);
+          await loadSnapshot();
+          setStatusMessage(`Mapping saved for ${entry.datasetUserCode}. You can now run the backend legacy engine to calculate and promote this user's energy records.`);
         })
         .catch((err) => {
           setError(err instanceof Error ? err.message : "Unable to apply mapping.");
@@ -176,13 +214,23 @@ export function EnergyPipelineAdminPage() {
               This screen tracks the raw SustainX import, the legacy-logic calculation output, and the mapping required before rows can be promoted into live user energy records.
             </p>
           </div>
-          <button
-            onClick={handleRefresh}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-          >
-            <RefreshCcw className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              onClick={handleRunPipeline}
+              disabled={isRunningPipeline}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Play className={`h-4 w-4 ${isRunningPipeline ? "animate-pulse" : ""}`} />
+              {isRunningPipeline ? "Running backend engine..." : "Run pipeline now"}
+            </button>
+            <button
+              onClick={handleRefresh}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              <RefreshCcw className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
         </div>
       </section>
 
@@ -211,10 +259,10 @@ export function EnergyPipelineAdminPage() {
       <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-cyan-200/75">Python Automation</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-cyan-200/75">Live Backend Engine</p>
             <h3 className="mt-2 text-lg font-semibold">Legacy calculation engine status</h3>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/62">
-              Monthly import calculations are intended to run through the Python CEB legacy logic pipeline, not only through frontend reads. This keeps token math, green-cap checks, and promotion logic consistent.
+              Monthly import calculations now run through the Supabase backend using the same legacy calculation rules ported from the Python pipeline. That keeps token math, green-cap checks, promotion, and dashboard balances consistent.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/72">
@@ -228,7 +276,7 @@ export function EnergyPipelineAdminPage() {
             ) : (
               <div className="space-y-1">
                 <p className="font-medium text-white">No logged pipeline run yet</p>
-                <p>After you enable the workflow or run the Python script, this panel will show the latest calculation cycle.</p>
+                <p>Use the Run pipeline now button to calculate and promote mapped rows directly from this screen.</p>
               </div>
             )}
           </div>
@@ -246,7 +294,7 @@ export function EnergyPipelineAdminPage() {
           <h3 className="text-lg font-semibold">Signed-up users waiting for energy linking</h3>
         </div>
         <p className="mb-4 max-w-3xl text-sm leading-6 text-white/62">
-          New signups are created in profiles and wallets immediately, but they will not appear in imported energy data until you link them to a dataset code or promote new readings for them.
+          New signups are created in profiles and wallets immediately, but they will not appear in imported energy data until you link them to a dataset code and run the backend promotion flow.
         </p>
         {unlinkedProfiles.length === 0 ? (
           <p className="text-sm text-white/55">Every active profile is already linked to imported energy rows.</p>
@@ -257,7 +305,7 @@ export function EnergyPipelineAdminPage() {
                 <p className="text-sm font-semibold text-white">{profile.full_name || profile.email || profile.id}</p>
                 <p className="mt-1 text-sm text-white/62">{profile.email || "No email recorded"}</p>
                 <p className="mt-2 text-xs uppercase tracking-[0.16em] text-white/40">
-                  {profile.user_type} • {profile.status}
+                  {profile.user_type} / {profile.status}
                 </p>
               </div>
             ))}
@@ -296,7 +344,7 @@ export function EnergyPipelineAdminPage() {
                     ))}
                   </div>
                   <p className="text-sm text-white/62">
-                    Meter {entry.meterId} • {entry.rowCount} billing rows • source {entry.sourceFileName}
+                    Meter {entry.meterId} / {entry.rowCount} billing rows / source {entry.sourceFileName}
                   </p>
                   <div className="flex flex-wrap gap-4 text-sm text-white/62">
                     <span>Imported {formatAmount(entry.totals.imported, 3)} kWh</span>
@@ -306,7 +354,7 @@ export function EnergyPipelineAdminPage() {
                     <span>Bill Rs {formatAmount(entry.totals.bill)}</span>
                   </div>
                   <p className="text-sm text-white/62">
-                    Current mapping: {entry.linkedUserLabel ?? "Not linked yet"} • calc version {entry.latestCalculationVersion ?? "Not calculated"}
+                    Current mapping: {entry.linkedUserLabel ?? "Not linked yet"} / calc version {entry.latestCalculationVersion ?? "Not calculated"}
                   </p>
                 </div>
 
@@ -326,7 +374,7 @@ export function EnergyPipelineAdminPage() {
                       <option value="">Choose a profile</option>
                       {profiles.map((profile) => (
                         <option key={profile.id} value={profile.id}>
-                          {(profile.full_name || profile.email || profile.id)} • {profile.user_type}
+                          {(profile.full_name || profile.email || profile.id)} / {profile.user_type}
                         </option>
                       ))}
                     </select>
