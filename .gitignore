@@ -4,3 +4,5 @@
 dist
 node_modules
 supabase/.temp
+__pycache__/
+*.pyc
