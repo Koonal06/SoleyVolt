@@ -101,7 +101,8 @@ with (security_invoker = true) as
 select
   id,
   coalesce(nullif(full_name, ''), split_part(id::text, '-', 1)) as full_name,
-  avatar_url
+  avatar_url,
+  email
 from public.profiles
 where status = 'active';
 

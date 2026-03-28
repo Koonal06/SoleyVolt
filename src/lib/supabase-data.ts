@@ -60,6 +60,7 @@ export type PublicUserRow = {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  email?: string | null;
 };
 
 export type AdminOverviewRow = {
@@ -408,8 +409,8 @@ export async function searchUsers(search: string) {
 
   const { data, error } = await client
     .from("public_user_directory")
-    .select("id, full_name, avatar_url")
-    .ilike("full_name", `%${term}%`)
+    .select("id, full_name, avatar_url, email")
+    .or(`full_name.ilike.%${term}%,email.ilike.%${term}%`)
     .neq("id", userId)
     .limit(10);
 

@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { Send, Search, CheckCircle, XCircle } from "lucide-react";
 import {
   getMyWallet,
-  searchUsers,
   transferTokens,
   type PublicUserRow,
   type WalletRow,
 } from "../../lib/supabase-data";
+import { searchTransferRecipients } from "../../lib/server-api";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../providers/AuthProvider";
 
@@ -139,7 +139,7 @@ export function Transfer() {
 
       try {
         setIsSearching(true);
-        const users = await searchUsers(searchQuery);
+        const users = await searchTransferRecipients(searchQuery);
 
         if (active) {
           setResults(users);
@@ -241,7 +241,7 @@ export function Transfer() {
                   setShowSuccess(false);
                   setErrorMessage("");
                 }}
-                placeholder="Search by full name..."
+                placeholder="Search by name or email..."
                 className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
@@ -264,7 +264,7 @@ export function Transfer() {
                     >
                       <div>
                         <p className="text-blue-900">{user.full_name ?? "Unnamed user"}</p>
-                        <p className="text-sm text-gray-600">Verified SoleyVolt account</p>
+                        <p className="text-sm text-gray-600">{user.email ?? "Verified SoleyVolt account"}</p>
                       </div>
                     </button>
                   ))
@@ -279,7 +279,7 @@ export function Transfer() {
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
               <p className="mb-1 text-sm text-emerald-700">Sending to:</p>
               <p className="text-emerald-900">{selectedUser.full_name ?? "Unnamed user"}</p>
-              <p className="text-sm text-emerald-700">Wallet-ready SoleyVolt user</p>
+              <p className="text-sm text-emerald-700">{selectedUser.email ?? "Wallet-ready SoleyVolt user"}</p>
             </div>
           )}
 

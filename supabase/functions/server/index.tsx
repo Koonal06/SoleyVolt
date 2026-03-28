@@ -478,24 +478,50 @@ app.get("/server/api/wallet", async (c) => {
 app.get("/server/api/users/search", async (c) => {
   const user = c.get("user");
   const admin = createAdminClient();
-  const query = (c.req.query("q") ?? "").trim();
+  const query = trimString(c.req.query("q"));
 
-  if (!query) {
+  if (query.length < 2) {
     return c.json([]);
   }
 
-  const { data, error } = await admin
-    .from("public_user_directory")
-    .select("id, full_name, avatar_url")
+  const searchByName = admin
+    .from("profiles")
+    .select("id, full_name, avatar_url, email")
+    .eq("status", "active")
     .neq("id", user.id)
     .ilike("full_name", `%${query}%`)
+    .order("full_name", { ascending: true })
     .limit(10);
 
-  if (error) {
-    return c.json({ error: error.message }, 400);
+  const searchByEmail = admin
+    .from("profiles")
+    .select("id, full_name, avatar_url, email")
+    .eq("status", "active")
+    .neq("id", user.id)
+    .ilike("email", `%${query}%`)
+    .order("email", { ascending: true })
+    .limit(10);
+
+  const [nameResult, emailResult] = await Promise.all([searchByName, searchByEmail]);
+
+  if (nameResult.error || emailResult.error) {
+    return c.json({ error: nameResult.error?.message ?? emailResult.error?.message ?? "Unable to search users." }, 400);
   }
 
-  return c.json(data ?? []);
+  const merged = new Map<string, { id: string; full_name: string | null; avatar_url: string | null; email: string | null }>();
+
+  for (const row of [...(emailResult.data ?? []), ...(nameResult.data ?? [])]) {
+    if (!merged.has(row.id)) {
+      merged.set(row.id, {
+        id: row.id,
+        full_name: row.full_name ?? null,
+        avatar_url: row.avatar_url ?? null,
+        email: row.email ?? null,
+      });
+    }
+  }
+
+  return c.json([...merged.values()].slice(0, 10));
 });
 
 app.get("/server/api/green-tokens/sellers/search", async (c) => {

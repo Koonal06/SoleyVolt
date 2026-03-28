@@ -6,6 +6,7 @@ import type {
   EnergyImportAdminRow,
   NotificationRow,
   ProfileRow,
+  PublicUserRow,
   UserWalletSummaryRow,
   WalletTransactionRow,
 } from "./supabase-data";
@@ -632,4 +633,10 @@ export function searchMarketplaceSellers(query: string) {
   const params = new URLSearchParams();
   params.set("q", query);
   return serverApiRequest<MarketplaceSellerOption[]>(`/green-tokens/sellers/search?${params.toString()}`);
+}
+
+export function searchTransferRecipients(query: string) {
+  const params = new URLSearchParams();
+  params.set("q", query);
+  return serverApiRequest<PublicUserRow[]>(`/users/search?${params.toString()}`);
 }
