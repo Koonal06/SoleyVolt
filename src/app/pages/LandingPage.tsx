@@ -155,7 +155,7 @@ export function LandingPage() {
       faqFiveA: "Request internal onboarding from the SoleyVolt team, receive your credentials, then sign in to your assigned portal.",
       contactOne: "Pilot-friendly onboarding path",
       contactTwo: "Wallet, transfer, and dashboard workflow guidance",
-      contactThree: "Support for admin and participant setup",
+      contactThree: "Support for participant setup",
       nameLabel: "Name",
       emailLabel: "Email",
       messageLabel: "Message",
@@ -259,7 +259,7 @@ export function LandingPage() {
       faqFiveA: "Demandez un onboarding interne a l'equipe SoleyVolt, recevez vos identifiants puis connectez-vous a votre portail attribue.",
       contactOne: "Parcours d'onboarding adapte aux pilotes",
       contactTwo: "Guidage sur portefeuille, transferts et tableaux de bord",
-      contactThree: "Support pour la mise en place admin et participants",
+      contactThree: "Support pour la mise en place des participants",
       nameLabel: "Nom",
       emailLabel: "Email",
       messageLabel: "Message",
@@ -363,7 +363,7 @@ export function LandingPage() {
       faqFiveA: "Demann onboarding interne ar lekip SoleyVolt, resevwar to credential, apre konekte dan portal ki finn atribie pou twa.",
       contactOne: "Parcours onboarding adapte pou pilot",
       contactTwo: "Led lor workflow wallet, transfer ek dashboard",
-      contactThree: "Sipor pou setup admin ek partisipan",
+      contactThree: "Sipor pou setup partisipan",
       nameLabel: "Nom",
       emailLabel: "Email",
       messageLabel: "Mesaz",
@@ -478,19 +478,18 @@ export function LandingPage() {
 
   const currentCopy = copy[lang];
   const applyNowLabel = lang === "fr" ? "Postuler" : lang === "cr" ? "Aplik Asterla" : "Apply Now";
-  const adminLoginLabel = lang === "fr" ? "Connexion admin" : lang === "cr" ? "Login admin" : "Admin Login";
   const marketCopy = {
     en: {
       metricLabel: "Green Coin live price",
       marketTitle: "Green Coin market",
       marketBody: "The public quote tracks Mauritius demand in real time.",
-      baseLabel: "Admin base",
+      baseLabel: "Reference price",
       clockLabel: "Mauritius clock",
       trendLabel: "Live move",
       signalPrice: "Green Coin",
       signalPhase: "Market phase",
       signalDelta: "Shift vs base",
-      syncLabel: "Admin linked",
+      syncLabel: "Live sync",
       fallbackLabel: "Public sync",
       updatedLabel: "Last synced",
     },
@@ -498,13 +497,13 @@ export function LandingPage() {
       metricLabel: "Prix direct Green Coin",
       marketTitle: "Marche Green Coin",
       marketBody: "Le prix public suit la demande mauricienne en direct.",
-      baseLabel: "Base admin",
+      baseLabel: "Prix de reference",
       clockLabel: "Heure Maurice",
       trendLabel: "Variation directe",
       signalPrice: "Green Coin",
       signalPhase: "Phase du marche",
       signalDelta: "Ecart vs base",
-      syncLabel: "Lie a l'admin",
+      syncLabel: "Synchro en direct",
       fallbackLabel: "Sync public",
       updatedLabel: "Derniere synchro",
     },
@@ -512,13 +511,13 @@ export function LandingPage() {
       metricLabel: "Pri Green Coin live",
       marketTitle: "Marse Green Coin",
       marketBody: "Pri piblik swiv demann Moris an direk.",
-      baseLabel: "Baz admin",
+      baseLabel: "Pri referans",
       clockLabel: "Ler Moris",
       trendLabel: "Mouvman live",
       signalPrice: "Green Coin",
       signalPhase: "Faz marse",
       signalDelta: "Sanzman lor baz",
-      syncLabel: "Lye ar admin",
+      syncLabel: "Sync live",
       fallbackLabel: "Sync piblik",
       updatedLabel: "Dernie sync",
     },
@@ -731,12 +730,6 @@ export function LandingPage() {
               className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               {applyNowLabel}
-            </Link>
-            <Link
-              to="/admin/login"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              {adminLoginLabel}
             </Link>
           </div>
         </div>
@@ -1174,12 +1167,6 @@ export function LandingPage() {
                 >
                   {currentCopy.getStarted}
                   <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  to="/admin/login"
-                  className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
-                >
-                  {adminLoginLabel}
                 </Link>
               </div>
             </div>
