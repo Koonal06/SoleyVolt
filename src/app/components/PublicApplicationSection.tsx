@@ -15,9 +15,9 @@ const copy = {
     eyebrow: "Apply Now",
     title: "Start with a regulated application, not public signup",
     body:
-      "SoleyVolt onboarding is reviewed by staff before any account is created. Submit your application and our admin team will validate your identity and user type before giving you portal access.",
+      "SoleyVolt onboarding is reviewed by staff before any account is created. Submit your application and our team will validate your identity and user type before giving you portal access.",
     cardOne: "Application submitted to the protected review queue",
-    cardTwo: "Admin validation before any user account is created",
+    cardTwo: "Staff validation before any user account is created",
     cardThree: "Approved applicants receive portal access or password setup",
     fullName: "Full name",
     nic: "NIC",
@@ -30,7 +30,7 @@ const copy = {
     submitting: "Submitting...",
     successTitle: "Application submitted",
     successBody:
-      "Your details are now in the SoleyVolt admin review queue. You will only receive portal access after staff approval.",
+      "Your details are now in the SoleyVolt review queue. You will only receive portal access after staff approval.",
     namePlaceholder: "Applicant name",
     nicPlaceholder: "NIC / National ID",
     emailPlaceholder: "name@example.com",
@@ -41,9 +41,9 @@ const copy = {
     eyebrow: "Postuler",
     title: "Commencez par une demande reglementee, pas par une inscription publique",
     body:
-      "L'onboarding SoleyVolt est verifie par l'equipe avant toute creation de compte. Soumettez votre demande et l'administration validera votre identite et votre type d'utilisateur avant de donner l'acces au portail.",
+      "L'onboarding SoleyVolt est verifie par l'equipe avant toute creation de compte. Soumettez votre demande et l'equipe validera votre identite et votre type d'utilisateur avant de donner l'acces au portail.",
     cardOne: "Demande envoyee vers la file de revue protegee",
-    cardTwo: "Validation admin avant toute creation de compte",
+    cardTwo: "Validation par l'equipe avant toute creation de compte",
     cardThree: "Les demandes approuvees recoivent l'acces ou un lien de mot de passe",
     fullName: "Nom complet",
     nic: "NIC",
@@ -56,7 +56,7 @@ const copy = {
     submitting: "Envoi...",
     successTitle: "Demande envoyee",
     successBody:
-      "Vos informations sont maintenant dans la file de revue admin SoleyVolt. L'acces au portail n'est donne qu'apres approbation.",
+      "Vos informations sont maintenant dans la file de revue SoleyVolt. L'acces au portail n'est donne qu'apres approbation.",
     namePlaceholder: "Nom du demandeur",
     nicPlaceholder: "NIC / Identifiant national",
     emailPlaceholder: "nom@example.com",
@@ -67,9 +67,9 @@ const copy = {
     eyebrow: "Aplik Asterla",
     title: "Koumans par enn aplikasyon regile, pa enn signup piblik",
     body:
-      "Onboarding SoleyVolt pas dan revizyon admin avan okenn kont kree. Soumet to aplikasyon ek lekip pou valide to idantite ek to tip user avan donn twa aksed portal.",
+      "Onboarding SoleyVolt pas dan revizyon lekip avan okenn kont kree. Soumet to aplikasyon ek lekip pou valide to idantite ek to tip user avan donn twa aksed portal.",
     cardOne: "Aplikasyon al dan file revizyon proteze",
-    cardTwo: "Validasyon admin avan kree okenn kont",
+    cardTwo: "Validasyon lekip avan kree okenn kont",
     cardThree: "Aplikasyon aprouve gagn aksed portal ouswa setup motdepase",
     fullName: "Nom konple",
     nic: "NIC",
@@ -82,7 +82,7 @@ const copy = {
     submitting: "Pe soumet...",
     successTitle: "Aplikasyon finn ale",
     successBody:
-      "To detay asterla dan file revizyon admin SoleyVolt. To gagn aksed portal zis apre laprouvasyon.",
+      "To detay asterla dan file revizyon SoleyVolt. To gagn aksed portal zis apre laprouvasyon.",
     namePlaceholder: "Nom aplikant",
     nicPlaceholder: "NIC / ID nasional",
     emailPlaceholder: "nom@example.com",

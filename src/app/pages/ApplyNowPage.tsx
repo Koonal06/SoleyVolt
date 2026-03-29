@@ -11,7 +11,6 @@ const copy = {
   en: {
     backHome: "Back to home",
     userLogin: "User Login",
-    adminLogin: "Admin Login",
     portal: "Application Portal",
     intro:
       "Submit your onboarding request through this controlled channel. SoleyVolt staff review every application before any portal account is activated.",
@@ -19,7 +18,6 @@ const copy = {
   fr: {
     backHome: "Retour a l'accueil",
     userLogin: "Connexion utilisateur",
-    adminLogin: "Connexion admin",
     portal: "Portail de demande",
     intro:
       "Soumettez votre demande via ce parcours controle. L'equipe SoleyVolt examine chaque dossier avant d'activer un compte portail.",
@@ -27,7 +25,6 @@ const copy = {
   cr: {
     backHome: "Retour lakaz",
     userLogin: "Login user",
-    adminLogin: "Login admin",
     portal: "Portal aplikasyon",
     intro:
       "Soumet to demann atraver sa channel kontrol-la. Lekip SoleyVolt reviz sak aplikasyon avan okenn kont portal vinn aktif.",
@@ -73,12 +70,6 @@ export function ApplyNowPage() {
               className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 transition hover:bg-white/10"
             >
               {currentCopy.userLogin}
-            </Link>
-            <Link
-              to="/admin/login"
-              className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 transition hover:bg-white/10"
-            >
-              {currentCopy.adminLogin}
             </Link>
           </div>
         </div>
