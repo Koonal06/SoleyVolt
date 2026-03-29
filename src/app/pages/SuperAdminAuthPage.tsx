@@ -14,9 +14,11 @@ import { toast } from "sonner";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../components/BrandLogo";
 import { getDefaultRouteForRole } from "../lib/access";
+import { useNoIndex } from "../lib/useNoIndex";
 import { useAuth } from "../providers/AuthProvider";
 
 export function SuperAdminAuthPage() {
+  useNoIndex();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -11,7 +11,7 @@ type ChatMessage = {
 };
 
 const STORAGE_KEY = "soleyvolt-assistant-chat";
-const API_URL = "http://100.107.158.32:11434/api/generate";
+const API_URL = (import.meta.env.VITE_ASSISTANT_API_URL ?? "").trim();
 const MODEL = "llama3.2:1b";
 const MAX_CONTEXT_MESSAGES = 6;
 
@@ -33,9 +33,8 @@ Portal rules:
 - user_type = energy behavior type
 
 Roles:
-- superadmin -> highest-level governance portal
-- admin -> separate admin portal
 - user -> normal user portal
+- staff accounts use protected internal portals that are not described on public pages
 
 User types:
 - consumer = mostly consumes electricity, usually gets Red Coins, can buy Green Coins, should not normally earn Yellow Coins
@@ -43,8 +42,6 @@ User types:
 - prosumer = both consumes and produces, can receive Red or Yellow Coins, can also buy Green Coins
 
 Login redirect rules:
-- if role = superadmin -> /super-admin/dashboard
-- if role = admin -> /admin/dashboard
 - if role = user -> /app/dashboard
 
 User portal routes:
@@ -54,41 +51,17 @@ User portal routes:
 - /app/history
 - /app/settings
 
-Admin portal routes:
-- /admin/dashboard
-- /admin/users
-- /admin/readings
-- /admin/wallets
-- /admin/bills
-- /admin/logs
-- /admin/settings
-
-Super admin portal routes:
-- /super-admin/dashboard
-- /super-admin/admins
-- /super-admin/users
-- /super-admin/system
-- /super-admin/logs
-- /super-admin/settings
-
 Dashboard behavior:
 - consumer dashboard focuses on consumption, Red Coins, bill estimate, Green Coin purchase, bill reduction summary
 - producer dashboard focuses on exported energy, Yellow Coin earnings, production history, stored credits, future bill-offset projection
 - prosumer dashboard shows imported energy, exported energy, net energy, Red Coins, Yellow Coins, Green Coin purchase, wallet summary, bill estimate
-- admin dashboard focuses on monitoring, regulation, total users, total energy, total Red/Yellow/Green values, purchases, logs, suspicious activity
-- super admin dashboard focuses on governance, admin oversight, system access control, and full-platform visibility
 
 Design rules:
-- user portal and admin portal must look different
+- user portal must feel simple, friendly, and personal
 - user portal = simple, friendly, personal
-- admin portal = analytical, monitoring-focused
 
 Access control:
-- normal users must never access /admin/*
-- normal users must never access /super-admin/*
-- admins should not use the user portal as their main dashboard
-- only superadmin can create admins
-- only admin can create normal users
+- users must only access the routes allowed for their account
 - use protected routes and redirects
 
 Language support:
@@ -186,12 +159,6 @@ function getRouteLabel(pathname: string) {
   if (pathname === "/login" || pathname === "/auth") {
     return "user authentication page";
   }
-  if (pathname === "/admin/login") {
-    return "admin login page";
-  }
-  if (pathname === "/super-admin/login") {
-    return "super admin login page";
-  }
   if (pathname.startsWith("/app/dashboard") || pathname === "/app") {
     return "user dashboard";
   }
@@ -207,44 +174,8 @@ function getRouteLabel(pathname: string) {
   if (pathname.startsWith("/app/settings")) {
     return "user settings page";
   }
-  if (pathname.startsWith("/admin/dashboard") || pathname === "/admin") {
-    return "admin dashboard";
-  }
-  if (pathname.startsWith("/admin/users")) {
-    return "admin user management page";
-  }
-  if (pathname.startsWith("/admin/readings")) {
-    return "admin readings page";
-  }
-  if (pathname.startsWith("/admin/wallets")) {
-    return "admin wallets page";
-  }
-  if (pathname.startsWith("/admin/bills")) {
-    return "admin bills page";
-  }
-  if (pathname.startsWith("/admin/logs")) {
-    return "admin logs page";
-  }
-  if (pathname.startsWith("/admin/settings")) {
-    return "admin settings page";
-  }
-  if (pathname.startsWith("/super-admin/dashboard") || pathname === "/super-admin") {
-    return "super admin dashboard";
-  }
-  if (pathname.startsWith("/super-admin/admins")) {
-    return "super admin admin-management page";
-  }
-  if (pathname.startsWith("/super-admin/users")) {
-    return "super admin user-management page";
-  }
-  if (pathname.startsWith("/super-admin/system")) {
-    return "super admin system page";
-  }
-  if (pathname.startsWith("/super-admin/logs")) {
-    return "super admin logs page";
-  }
-  if (pathname.startsWith("/super-admin/settings")) {
-    return "super admin settings page";
+  if (pathname.startsWith("/admin") || pathname.startsWith("/super-admin")) {
+    return "restricted staff page";
   }
   return `page ${pathname}`;
 }
@@ -283,7 +214,7 @@ async function askAI(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal,
 ) {
-  const response = await fetch("http://100.107.158.32:11434/api/generate", {
+  const response = await fetch(API_URL, {
     method: "POST",
     signal,
     headers: {
@@ -381,6 +312,7 @@ export function SoleyVoltAssistant() {
   });
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
+  const shouldRenderAssistant = Boolean(API_URL) && pathname.startsWith("/app");
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
@@ -505,6 +437,10 @@ export function SoleyVoltAssistant() {
     setError("");
     setIsSending(false);
   };
+
+  if (!shouldRenderAssistant) {
+    return null;
+  }
 
   return (
     <>

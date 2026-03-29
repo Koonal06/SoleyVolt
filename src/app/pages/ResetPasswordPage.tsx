@@ -4,9 +4,11 @@ import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../components/BrandLogo";
+import { useNoIndex } from "../lib/useNoIndex";
 import { useAuth } from "../providers/AuthProvider";
 
 export function ResetPasswordPage() {
+  useNoIndex();
   const navigate = useNavigate();
   const { isConfigured, isLoading, session } = useAuth();
   const [password, setPassword] = useState("");

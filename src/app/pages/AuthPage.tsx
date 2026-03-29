@@ -17,11 +17,13 @@ import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../components/BrandLogo";
 import { getDefaultRouteForRole } from "../lib/access";
 import { getStoredLanguage, setStoredLanguage } from "../lib/language";
+import { useNoIndex } from "../lib/useNoIndex";
 import { useAuth } from "../providers/AuthProvider";
 
 type Language = "en" | "fr" | "cr";
 
 export function AuthPage() {
+  useNoIndex();
   const [lang, setLang] = useState<Language>(() => getStoredLanguage());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,14 +61,13 @@ export function AuthPage() {
       tagline: "Nouvo Lenerzi, Nouvo Moris.",
       headline: "Secure access for approved SoleyVolt users.",
       subheadline:
-        "User accounts are created internally by the SoleyVolt operations team. Sign in here with the credentials you received from your administrator.",
+        "User accounts are created internally by the SoleyVolt operations team. Sign in here with the credentials you received from the SoleyVolt team.",
       missingConfig:
         "Add your Supabase VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before signing in.",
       loginSuccess: "Login successful. Welcome back.",
       loginPending: "Checking your portal access...",
       loading: "Connecting...",
       backHome: "Back to home",
-      adminAccess: "Admin login",
       secure: "Controlled onboarding only",
       fast: "Live wallet and reading sync",
       trusted: "Built for Mauritius energy exchange",
@@ -94,14 +95,13 @@ export function AuthPage() {
       tagline: "Nouvo Lenerzi, Nouvo Moris.",
       headline: "Acces securise pour les utilisateurs SoleyVolt approuves.",
       subheadline:
-        "Les comptes utilisateur sont crees en interne par l'equipe SoleyVolt. Connectez-vous ici avec les identifiants recus de votre administrateur.",
+        "Les comptes utilisateur sont crees en interne par l'equipe SoleyVolt. Connectez-vous ici avec les identifiants recus de l'equipe SoleyVolt.",
       missingConfig:
         "Ajoutez VITE_SUPABASE_URL et VITE_SUPABASE_PUBLISHABLE_KEY avant de vous connecter.",
       loginSuccess: "Connexion reussie. Bon retour.",
       loginPending: "Verification de l'acces au portail...",
       loading: "Connexion...",
       backHome: "Retour a l'accueil",
-      adminAccess: "Connexion admin",
       secure: "Onboarding controle uniquement",
       fast: "Synchronisation live du wallet et des releves",
       trusted: "Pense pour l'energie a Maurice",
@@ -129,13 +129,12 @@ export function AuthPage() {
       tagline: "Nouvo Lenerzi, Nouvo Moris.",
       headline: "Aksed sekirize pou bann user SoleyVolt ki finn apouve.",
       subheadline:
-        "Kont user kree an interne par lekip SoleyVolt. Konekte isi avek bann credential ki to admin inn donn twa.",
+        "Kont user kree an interne par lekip SoleyVolt. Konekte isi avek bann credential ki lekip SoleyVolt inn donn twa.",
       missingConfig: "Ajout VITE_SUPABASE_URL ek VITE_SUPABASE_PUBLISHABLE_KEY avan konekte.",
       loginSuccess: "Login reisi. Bon retour.",
       loginPending: "Pe verifye to akses portal...",
       loading: "Pe konekte...",
       backHome: "Retour lakaz",
-      adminAccess: "Login admin",
       secure: "Onboarding kontrol zis an interne",
       fast: "Wallet ek reading an direk",
       trusted: "Fer pou rezo lenzerzi Moris",
@@ -298,13 +297,6 @@ export function AuthPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <Link
-              to="/admin/login"
-              className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 transition hover:bg-white/10"
-            >
-              {currentCopy.adminAccess}
-            </Link>
-
             <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2 backdrop-blur">
               <Globe2 className="h-4 w-4 text-amber-300" />
               <select
